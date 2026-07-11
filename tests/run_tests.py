@@ -402,10 +402,39 @@ def test_telemetry():
         shutil.rmtree(tmpdir, ignore_errors=True)
 
 
+def test_html_report_xss():
+    from utils.json_converter import safe_js_json
+    print("[html report XSS hardening]")
+    PAY = '</script><img src=x onerror=alert(1)><!-- &'
+
+    blob = safe_js_json({"proc": PAY})
+    check("embedded JSON has no raw '<'", "<" not in blob)
+    check("embedded JSON has no raw '>'", ">" not in blob)
+    check("embedded JSON has no raw '&'", "&" not in blob)
+    check("embedded JSON has no U+2028", "\u2028" not in blob)
+    check("payload round-trips losslessly", json.loads(blob)["proc"] == PAY)
+    check("break-out sequence encoded, not literal",
+          "</script><img" not in blob and "\\u003c/script" in blob)
+
+    # end-to-end: the report generator must embed via safe_js_json, so a hostile
+    # process name cannot inject a live <script>/<img> into report.html.
+    try:
+        from modules.html_report import HTMLReportGenerator
+        gen = HTMLReportGenerator(logging.getLogger("t"), "windows")
+        html = gen._build_html({"counts": {"evilproc": PAY}}, Path("/tmp/x"))
+        check("_build_html: no live break-out from payload",
+              "</script><img src=x" not in html)
+        check("_build_html: payload survives only encoded",
+              "\\u003c/script" in html)
+    except Exception as exc:
+        check("_build_html end-to-end reachable", False, detail=repr(exc))
+
+
 def main():
     for t in (test_corroborate_processes, test_classify_failure,
               test_assess_fixtures, test_advisory_nonempty, test_ioc_extractor,
-              test_crash_report, test_vol3_demotion, test_telemetry):
+              test_crash_report, test_vol3_demotion, test_telemetry,
+              test_html_report_xss):
         try:
             t()
         except Exception as exc:  # a crashing test is a failing test

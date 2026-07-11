@@ -27,6 +27,8 @@ import logging
 import re
 import sys
 import traceback
+
+from utils.json_converter import safe_js_json
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
 from datetime import datetime
@@ -440,7 +442,7 @@ class HTMLReportGenerator:
                           self.MAX_EMBED_ROWS, self.MAX_EMBED_STRING_CHARS)
 
         self._set_stage("serialize HTML JSON payload")
-        js_data = json.dumps(slim_data, ensure_ascii=False, default=str).replace("</", "<\\/")
+        js_data = safe_js_json(slim_data)
         self.log.info("[payload] embedded JSON size: %.2f MB", len(js_data.encode("utf-8")) / (1024 * 1024))
 
         template = HTML_TEMPLATE

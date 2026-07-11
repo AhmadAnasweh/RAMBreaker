@@ -5,6 +5,29 @@ import re
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
+
+def safe_js_json(obj: Any) -> str:
+    """Serialize `obj` as JSON that is safe to embed inside an HTML <script> block.
+
+    The report embeds the whole dataset as `const D=<json>` in a <script>, and the
+    data comes from an evidence RAM image — a process name / command line / URL is
+    attacker-controlled. `json.dumps` escapes quotes and backslashes, but a string
+    value can still contain `</script>`, `<!--`, or a raw `<tag>` that breaks out
+    of the script/HTML context BEFORE any client-side escaping runs. Escaping
+    `< > &` and the JS line/paragraph separators (U+2028/U+2029) as `\\uXXXX`
+    keeps the JSON valid and byte-identical after `JSON.parse`, while making
+    context breakout impossible regardless of any per-field escaping downstream.
+    This is the standard 'JSON in a <script> tag' hardening and is the single
+    source of truth for it (shared by all OS report generators).
+    """
+    s = json.dumps(obj, ensure_ascii=False, default=str)
+    return (s.replace("<", "\\u003c")
+             .replace(">", "\\u003e")
+             .replace("&", "\\u0026")
+             .replace("\u2028", "\\u2028")
+             .replace("\u2029", "\\u2029"))
+
+
 def parse_vol2_table(text: str, plugin_name: str = "") -> List[Dict[str, Any]]:
     """Parse Volatility 2 text-table output into list of dicts."""
     lines = text.splitlines()
