@@ -59,6 +59,31 @@ def test_corroborate_processes():
     check("psscan>>pslist -> WARN (not critical)",
           hidden and all(f["severity"] != C for f in hidden), detail=str(hidden))
 
+    # H1: psaux fallback corroboration when no pool-scan source ran (e.g. macOS).
+    macbug = rh.corroborate_processes({"pslist": 0, "psscan": None,
+                                       "pstree": 0, "psaux": 88}, "mac")
+    check("mac psaux>0 + pslist empty + no psscan -> CRITICAL",
+          any(f["severity"] == C for f in macbug), detail=str(macbug))
+    check("mac fallback message names psaux",
+          any("psaux" in f["message"] for f in macbug))
+    macok = rh.corroborate_processes({"pslist": 50, "psscan": None,
+                                      "pstree": 50, "psaux": 50}, "mac")
+    check("mac healthy (no psscan, pslist==psaux) -> no findings",
+          macok == [], detail=str(macok))
+    both = rh.corroborate_processes({"pslist": 0, "psscan": 120,
+                                     "pstree": 0, "psaux": 0}, "linux")
+    check("psscan Bug-#10 still fires when psaux also present",
+          any("psscan" in f["message"] for f in both))
+    # H1: on Linux, scan ≫ list is normal (dead task_structs) — must NOT WARN.
+    lin_excess = rh.corroborate_processes({"pslist": 232, "psscan": 904,
+                                           "pstree": 200, "psaux": 232}, "linux")
+    check("linux psscan≫pslist -> no noise WARN", lin_excess == [],
+          detail=str(lin_excess))
+    win_excess = rh.corroborate_processes({"pslist": 40, "psscan": 90,
+                                           "pstree": 40}, "windows")
+    check("windows psscan≫pslist -> WARN kept",
+          any("exceeds" in f["message"] for f in win_excess))
+
 
 def test_classify_failure():
     from modules import run_health as rh

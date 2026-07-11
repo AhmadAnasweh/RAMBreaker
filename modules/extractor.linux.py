@@ -16,9 +16,9 @@ from modules.volatility import VolatilityWrapper
 from utils.json_converter import convert_json_to_txt
 
 PLUGINS: Dict[str, str] = {
-    "vol3-linux-fast": "linux.pslist.PsList linux.pstree.PsTree linux.psaux.PsAux linux.bash.Bash linux.lsmod.Lsmod linux.check_modules.Check_modules linux.sockstat.Sockstat linux.lsof.Lsof linux.proc.Maps linux.pagecache.Files",
-    "vol3-linux-full": "linux.pslist.PsList linux.pstree.PsTree linux.psaux.PsAux linux.bash.Bash linux.sockstat.Sockstat linux.lsmod.Lsmod linux.check_modules.Check_modules linux.check_syscall.Check_syscall linux.tty_check.tty_check linux.elfs.Elfs linux.envars.Envars linux.library_list.LibraryList linux.lsof.Lsof linux.mountinfo.MountInfo linux.malfind.Malfind linux.ip.Addr linux.proc.Maps linux.pagecache.Files",
-    "vol3-linux-malware": "linux.pslist.PsList linux.pstree.PsTree linux.bash.Bash linux.lsmod.Lsmod linux.check_modules.Check_modules linux.check_syscall.Check_syscall linux.tty_check.tty_check linux.elfs.Elfs linux.sockstat.Sockstat linux.malfind.Malfind",
+    "vol3-linux-fast": "linux.pslist.PsList linux.pstree.PsTree linux.psscan.PsScan linux.psaux.PsAux linux.bash.Bash linux.lsmod.Lsmod linux.check_modules.Check_modules linux.sockstat.Sockstat linux.lsof.Lsof linux.proc.Maps linux.pagecache.Files",
+    "vol3-linux-full": "linux.pslist.PsList linux.pstree.PsTree linux.psscan.PsScan linux.psaux.PsAux linux.bash.Bash linux.sockstat.Sockstat linux.lsmod.Lsmod linux.check_modules.Check_modules linux.check_syscall.Check_syscall linux.tty_check.tty_check linux.elfs.Elfs linux.envars.Envars linux.library_list.LibraryList linux.lsof.Lsof linux.mountinfo.MountInfo linux.malfind.Malfind linux.ip.Addr linux.proc.Maps linux.pagecache.Files",
+    "vol3-linux-malware": "linux.pslist.PsList linux.pstree.PsTree linux.psscan.PsScan linux.bash.Bash linux.lsmod.Lsmod linux.check_modules.Check_modules linux.check_syscall.Check_syscall linux.tty_check.tty_check linux.elfs.Elfs linux.sockstat.Sockstat linux.malfind.Malfind",
     "vol3-linux-network": "linux.pslist.PsList linux.pstree.PsTree linux.sockstat.Sockstat linux.lsof.Lsof linux.ip.Addr",
     "vol2-linux-fast": "linux_pslist linux_pstree linux_psaux linux_bash linux_lsmod linux_check_modules linux_lsof linux_proc_maps",
     "vol2-linux-full": "linux_pslist linux_pstree linux_psaux linux_bash linux_ifconfig linux_netstat linux_lsmod linux_check_modules linux_check_syscall linux_dmesg linux_enumerate_files linux_lsof linux_mount linux_elfs linux_proc_maps",
@@ -29,7 +29,10 @@ PLUGINS: Dict[str, str] = {
 VALID_MODES = ("fast", "full", "malware", "network")
 
 DEPENDENCIES: Dict[str, Set[str]] = {
-    "pslist": {"pstree", "psscan", "psaux", "lsof"},
+    # psscan is a POOL scan, independent of the task-list walk — it must NOT be
+    # skipped when pslist fails, because "pslist empty / psscan finds processes"
+    # is exactly the hidden-or-silently-failed signal run_health corroborates.
+    "pslist": {"pstree", "psaux", "lsof"},
 }
 
 

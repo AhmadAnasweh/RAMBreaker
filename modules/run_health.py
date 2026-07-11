@@ -47,10 +47,10 @@ KEY_PLUGINS: Dict[str, Dict[str, List[str]]] = {
     "windows": {"process": ["pslist", "psscan", "pstree"],
                 "network": ["netscan", "netstat"],
                 "files":   ["filescan"]},
-    "linux":   {"process": ["pslist", "psscan", "pstree"],
+    "linux":   {"process": ["pslist", "psscan", "pstree", "psaux"],
                 "network": ["sockstat"],
                 "files":   ["pagecache"]},
-    "mac":     {"process": ["pslist", "psscan", "pstree"],
+    "mac":     {"process": ["pslist", "psscan", "pstree", "psaux"],
                 "network": ["netstat"],
                 "files":   ["list_files"]},
 }
@@ -146,17 +146,30 @@ def classify_failure(text: str, plugin_name: str = "") -> Dict[str, str]:
     return {"category": "other", "reason": stripped[:160] or "unknown"}
 
 
-def corroborate_processes(counts: Dict[str, Optional[int]]) -> List[Dict[str, str]]:
+def corroborate_processes(counts: Dict[str, Optional[int]],
+                          os_type: str = "windows") -> List[Dict[str, str]]:
     """Cross-check process-listing plugins. ``counts`` maps
-    'pslist'/'psscan'/'pstree' to a record count (None = plugin produced no
-    output). Pure function. Returns a list of findings (possibly empty = OK).
+    'pslist'/'psscan'/'pstree'/'psaux' to a record count (None = plugin produced
+    no output). Pure function. Returns a list of findings (possibly empty = OK).
+
+    ``psscan`` is the pool-scan source (Windows + Linux) that catches the Bug-#10
+    "linked list empty, pool scan finds processes" signature. On images with no
+    pool-scan plugin (macOS has no ``psscan``), ``psaux`` — an independent /proc
+    walk — is used as a weaker fallback corroborator so a silently-failed
+    ``pslist`` is still surfaced.
+
+    ``os_type`` gates the "psscan ≫ pslist" hidden/terminated WARN to Windows: on
+    Linux the slab routinely retains many dead ``task_struct``s, so pool-scan
+    counts vastly exceed the live list on a perfectly healthy host — firing there
+    would be pure noise. The Bug-#10 CRITICAL (pslist *empty*) is kept for all OSes.
     """
     pslist = counts.get("pslist")
     psscan = counts.get("psscan")
     pstree = counts.get("pstree")
+    psaux = counts.get("psaux")
     findings: List[Dict[str, str]] = []
 
-    if all(v is None for v in (pslist, psscan, pstree)):
+    if all(v is None for v in (pslist, psscan, pstree, psaux)):
         return [{"severity": CRITICAL, "check": "processes",
                  "message": "No process plugin produced any output — extraction "
                             "likely failed or symbols are missing. The Processes "
@@ -172,6 +185,17 @@ def corroborate_processes(counts: Dict[str, Optional[int]]) -> List[Dict[str, st
                        f"Processes tab until you check psscan output."})
         return findings
 
+    # Fallback (no pool scan available, e.g. macOS): an independent /proc walk
+    # disagreeing with an empty pslist still means pslist failed silently.
+    if psscan is None and (psaux or 0) > 0 and (pslist is None or pslist == 0):
+        findings.append({
+            "severity": CRITICAL, "check": "processes",
+            "message": f"psaux found {psaux} processes but pslist is empty, and "
+                       f"no pool-scan (psscan) source was available to cross-check "
+                       f"(e.g. macOS). pslist likely failed silently — trust "
+                       f"psaux until verified."})
+        return findings
+
     if (pslist or 0) == 0 and (psscan or 0) == 0:
         findings.append({
             "severity": CRITICAL, "check": "processes",
@@ -180,7 +204,10 @@ def corroborate_processes(counts: Dict[str, Optional[int]]) -> List[Dict[str, st
         return findings
 
     # Large disagreement — possible hidden/terminated processes (an observation).
-    if pslist and psscan and psscan > pslist + max(3, int(pslist * 0.25)):
+    # Windows only: on Linux the slab keeps dead task_structs, so scan ≫ list is
+    # normal and this would fire on every healthy host.
+    if (os_type == "windows" and pslist and psscan
+            and psscan > pslist + max(3, int(pslist * 0.25))):
         findings.append({
             "severity": WARN, "check": "processes",
             "message": f"psscan ({psscan}) exceeds pslist ({pslist}) by "
@@ -270,7 +297,7 @@ def assess(output_dir, os_type: str, mode: Optional[str] = None,
     groups = KEY_PLUGINS[os_type]
 
     counts = {name: _count(json_dir, name) for name in groups["process"]}
-    findings = corroborate_processes(counts)
+    findings = corroborate_processes(counts, os_type)
 
     # Empty-key-plugin (silent empty tab) checks for network + files.
     for tab in ("network", "files"):
