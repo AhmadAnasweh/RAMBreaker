@@ -59,5 +59,7 @@ Thumbs.db
 !tests/fixtures/**
 # ...but fixtures are INPUTS: never track artifacts a test run writes into them.
 tests/fixtures/**/run_health.json
+tests/fixtures/**/crash_report.json
 tests/fixtures/**/SUMMARY.txt
 run_health.json
+crash_report.json

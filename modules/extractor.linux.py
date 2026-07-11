@@ -248,5 +248,16 @@ class Extractor:
                 lvl("RUN HEALTH: %s", f["message"])
             if health["status"] != "healthy":
                 self.log.warning("RUN HEALTH status: %s", health["status"])
+            # Failure fingerprint: on any failure, drop a scrubbed, local-only
+            # crash_report.json (Step 1 of opt-in crash reporting) an analyst can
+            # hand to the tool author. Best-effort — never disturbs extraction.
+            try:
+                from modules import crash_report
+                cr = crash_report.write(output_dir, image, self.vol, mode,
+                                        results, health)
+                if cr:
+                    self.log.warning("Failure fingerprint written: %s", cr)
+            except Exception as e:
+                self.log.warning("crash_report skipped: %s", e)
         except Exception as e:
             self.log.warning("run_health assessment skipped: %s", e)

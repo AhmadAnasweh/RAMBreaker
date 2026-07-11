@@ -1,6 +1,11 @@
-# Future Feature — Opt-in Crash / Failure Reporting
+# Crash / Failure Reporting
 
-Status: **planned, not built** (design agreed 2026-07-11). Author: Ahmad Anasweh.
+Status: **Step 1 (local `crash_report.json`) BUILT 2026-07-11**; Step 2
+(opt-in transport) still planned. Author: Ahmad Anasweh.
+
+> **Step 1 is implemented** — see [`## Implemented — Step 1`](#implemented--step-1-local-crash_reportjson)
+> at the bottom. The design below is the full end-state; only the transport half
+> (send/consent) remains unbuilt.
 
 ## Goal
 When a run hits plugin failures, produce a **scrubbed, structured failure
@@ -70,8 +75,10 @@ Protect with a shared secret.
 
 ## Suggested build order
 1. **Local only:** end-of-run failure-fingerprint summary + `crash_report.json`
-   (zero privacy risk, most of the diagnostic value).
+   (zero privacy risk, most of the diagnostic value). ✅ **DONE** — see below.
 2. **Transport:** opt-in send to a chosen endpoint, once scrubbing is proven.
+   *(Not built. The scrubbing it depends on is now proven in code + tests, so
+   this is the next clean step.)*
 
 ## Related: log-signature cheat-sheet (diagnose without the image)
 | Log signature | Cause |
@@ -85,3 +92,61 @@ Protect with a shared secret.
 
 The **kernel banner in the log is the key**: it lets the maintainer refetch that
 kernel's debug package and reproduce the ISF/struct layout **without the image**.
+
+---
+
+## Implemented — Step 1 (local `crash_report.json`)
+
+**Module:** `modules/crash_report.py`. Self-contained (like `run_health.py`):
+reads only the output dir + the `run_health` result, writes one file, never
+sends anything. Every helper is a pure, unit-testable function; `write()` is the
+only side-effecting entry point and is wrapped so it can never disturb an
+extraction.
+
+**When it writes:** only when a run actually failed — `results["fail"] > 0` **or**
+`run_health` status ≠ `healthy` (`_should_write`). A clean run leaves no artifact.
+
+**Where:** `<output>/crash_report.json`. Gitignored (`crash_report.json` +
+`tests/fixtures/**/crash_report.json`) so the artifact never enters history —
+same rule as `run_health.json`.
+
+**Schema `crescent-crash-report/1`** (whitelisted top-level keys — enforced by the
+`_CRASH_KEYS` frozen-set test):
+`schema, generated, note, tool_version, run{status,mode,duration_s,plugins_ok/failed/skipped/dep_skipped}, host{os,arch,python}, target{os_type,engine,profile,kernel,distro}, toolchain{vol3_commit_pinned,dwarf2json,source}, process_corroboration, findings[], failed_plugins[{name,category,reason}], ok_plugins[], fingerprint`.
+
+**Privacy guarantees (the whole point — this is the manual-handover artifact):**
+- **Whitelist, never blacklist** — only the keys above are ever emitted; the
+  `_CRASH_KEYS` test fails if a new key appears without review.
+- **`scrub()`** redacts every free-text field: `0x…`→`<addr>`, Windows paths,
+  `/home|Users|root|var|tmp|mnt|media/…` and any remaining absolute POSIX path
+  →`<path>`.
+- **`parse_kernel_banner()`** keeps only the parsed kernel version + a distro
+  label — the raw banner (which embeds the builder `user@host` + build path) is
+  **never** retained.
+- **No image content** — no strings, IOCs, hostnames/IPs, file paths, usernames,
+  hashes, or dumped files. No `install_id` (that's a Step-2 consent concern).
+
+**Failure semantics reuse:** `failed_plugins` and `process_corroboration` come
+straight from the `run_health` `failure_taxonomy` / `process_counts`, so there is
+one source of truth for "which plugin failed and why."
+
+**`fingerprint`:** 16-hex sha256 over `os_type|engine|kernel|distro` + sorted
+`plugin:category` pairs — order-independent, image-free, so the maintainer can
+dedup identical failures across runs/machines (the Step-2 rate-limit key).
+
+**Integration:** called from `write_summary()` in `extractor.windows.py`,
+`extractor.linux.py`, `extractor.mac.py`, nested inside the existing `run_health`
+try-block (so `health` is in scope), append-only and wrapped in try/except.
+
+**Tests:** `tests/run_tests.py::test_crash_report` — 19 assertions covering
+scrub redaction, banner parsing (incl. builder-identity drop), fingerprint
+stability, the whitelist-keys guard, an explicit *no-leak* check (sentinel path +
+address must not survive into the JSON), and `write()` behaviour (nothing on a
+healthy run, `crash_report.json` on a broken one).
+
+### What's left for Step 2 (transport)
+`install_id` generation + first-run consent prompt showing a sample payload;
+`--no-telemetry` / `CRESCENT_TELEMETRY=0`; best-effort fire-and-forget send with
+dedup by `fingerprint`; the privacy-max "send this file? [y/N]" prompt. The
+scrubbing those depend on is now proven, so Step 2 can build on
+`crash_report.build()` directly.

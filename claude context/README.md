@@ -35,6 +35,14 @@ silently dropping the process list). OS-detection probes (`banners`,
 (8 GB+) no longer false-stall or time out at 45 s. See Bug #10 in
 `ARCHITECTURE_V6.md` and `SESSION_2026-07-08_WINDOWS_KERNEL_SYMBOL_RACE.md`.
 
+**Run-health + crash reporting (2026-07-11):** every extraction is now assessed
+for *silent* failure — an empty Processes tab that looks like a clean system —
+via `run_health.py` (process corroboration, empty-tab detection, failure
+taxonomy; health banner in `SUMMARY.txt` + `run_health.json`). When a run
+actually fails, `crash_report.py` also writes a **scrubbed, local**
+`crash_report.json` failure-fingerprint (no image content; safe to hand to the
+tool author) — Step 1 of the design in `FUTURE_CRASH_REPORTING.md`.
+
 ## Run
 
 ```bash
@@ -80,3 +88,5 @@ Speed: `normal fast fastest`. Full flag/command reference in `ARCHITECTURE_V6.md
 | `SESSION_2026-07-06_MAC_LISTFILES_NETSTAT_FLOCK.md` | macOS `list_files` RecursionError fix, `netstat` fix + framework patcher, mac field-mapping fixes, Flock comms app |
 | `SESSION_2026-07-06_HTML_GLOBAL_SEARCH.md` | HTML report global cross-tab search, report OS-dispatch fix, correlation-tab data/dedup fixes |
 | `SESSION_2026-07-08_WINDOWS_KERNEL_SYMBOL_RACE.md` | Windows Vol3 cold-start kernel-symbol race (Bug #10): serial kernel-symbol warm-up, progress-aware detection probes, self-healing serial retry |
+| `FUTURE_CRASH_REPORTING.md` | Crash/failure reporting design. **Step 1 (local `crash_report.json`) BUILT**; Step 2 (opt-in transport) planned. Privacy rules, scrub traps, log-signature cheat-sheet |
+| `SESSION_2026-07-11_CRASH_REPORT_LOCAL.md` | Local scrubbed failure-fingerprint artifact (`modules/crash_report.py`): schema, privacy guarantees, extractor integration, tests |

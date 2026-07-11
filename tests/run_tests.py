@@ -10,7 +10,9 @@ Volatility; the canary matrix (a later step) covers real images.
 """
 
 import sys
+import json
 import logging
+import types
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -128,9 +130,121 @@ def test_ioc_extractor():
           "crypto" in cats(f"pay {btc}") and btc in matches(f"pay {btc}"))
 
 
+# Frozen whitelist of top-level keys crash_report.build may ever emit. A new key
+# here must be a deliberate, reviewed change — this guards against a future field
+# silently carrying image-derived data into the handoff artifact.
+_CRASH_KEYS = {
+    "schema", "generated", "note", "tool_version", "run", "host", "target",
+    "toolchain", "process_corroboration", "findings", "failed_plugins",
+    "ok_plugins", "fingerprint",
+}
+
+
+def test_crash_report():
+    from modules import crash_report as cr
+    from modules import run_health as rh
+    print("[crash_report]")
+
+    # --- scrub(): every sensitive shape is redacted ---
+    s = cr.scrub("read /home/kali/case/dump.raw at 0xdeadbeef and "
+                 "C:\\Users\\victim\\m.exe")
+    check("scrub redacts unix user path", "/home/kali" not in s, detail=s)
+    check("scrub redacts windows path", "victim" not in s, detail=s)
+    check("scrub redacts hex address", "0xdeadbeef" not in s, detail=s)
+    check("scrub inserts placeholders", "<path>" in s and "<addr>" in s, detail=s)
+
+    # --- parse_kernel_banner(): version+distro only, builder identity dropped ---
+    banner = ("Linux version 6.1.0-kali9-amd64 (devel@buildbox) "
+              "(gcc 13) #1 SMP Kali 6.1.27-1kali1")
+    pk = cr.parse_kernel_banner(banner)
+    check("banner -> kernel version", pk["kernel"] == "6.1.0-kali9-amd64",
+          detail=str(pk))
+    check("banner -> distro Kali", pk["distro"] == "Kali", detail=str(pk))
+    check("banner builder user@host NOT retained",
+          "buildbox" not in json.dumps(pk) and "devel@" not in json.dumps(pk))
+    check("ubuntu banner -> Ubuntu",
+          cr.distro_from_banner("Linux version 5.15.0-91 (Ubuntu 11.4)") == "Ubuntu")
+
+    # --- fingerprint(): 16 hex chars, order-independent ---
+    tgt = {"os_type": "linux", "engine": "vol3", "kernel": "6.1", "distro": "Kali"}
+    f1 = cr.fingerprint(tgt, [{"plugin": "a", "category": "x"},
+                              {"plugin": "b", "category": "y"}])
+    f2 = cr.fingerprint(tgt, [{"plugin": "b", "category": "y"},
+                              {"plugin": "a", "category": "x"}])
+    check("fingerprint stable + order-independent",
+          f1 == f2 and len(f1) == 16, detail=f"{f1} vs {f2}")
+
+    # --- build(): whitelisted keys only, correct status, no leakage ---
+    health = {
+        "status": "degraded",
+        "process_counts": {"pslist": 5, "psscan": 5, "pstree": 5},
+        "findings": [{"severity": "warning", "check": "files",
+                      "message": "empty at /home/zztopsecret/case 0xCAFEB0BE"}],
+        "failure_taxonomy": [{"plugin": "linux.lsof.Lsof",
+                              "category": "struct-mismatch",
+                              "reason": "read /home/zzanalyst/x on 0x41414141"}],
+    }
+    rep = cr.build(FIX / "good_win", os_type="linux", engine="vol3", profile=None,
+                   mode="full",
+                   results={"ok": 10, "fail": 1, "duration": 12.3,
+                            "skipped": 0, "dep_skipped": 0},
+                   health=health)
+    check("build emits only whitelisted keys",
+          set(rep) == _CRASH_KEYS, detail=str(set(rep) ^ _CRASH_KEYS))
+    check("build carries status through", rep["run"]["status"] == "degraded")
+    check("build maps taxonomy -> failed_plugins",
+          rep["failed_plugins"] and rep["failed_plugins"][0]["name"] == "linux.lsof.Lsof")
+    blob = json.dumps(rep)
+    check("build leaks NO target path", "zztopsecret" not in blob
+          and "zzanalyst" not in blob, detail="path leaked into report")
+    check("build leaks NO raw address", "0xCAFEB0BE" not in blob
+          and "0x41414141" not in blob)
+    check("build scrubs into placeholders", "<path>" in blob and "<addr>" in blob)
+
+    # --- _should_write(): fires on real trouble, silent on benign-only ---
+    sw = cr._should_write
+    check("healthy + no failures -> no report",
+          sw({"fail": 0}, {"status": "healthy", "failure_taxonomy": []}) is False)
+    check("healthy + only expected-nonbug/empty -> no report",
+          sw({"fail": 2}, {"status": "healthy",
+             "failure_taxonomy": [{"category": "expected-nonbug"},
+                                  {"category": "empty-result"}]}) is False)
+    check("healthy + a real failure (timeout) -> report",
+          sw({"fail": 1}, {"status": "healthy",
+             "failure_taxonomy": [{"category": "timeout"}]}) is True)
+    check("degraded status -> report",
+          sw({"fail": 0}, {"status": "degraded", "failure_taxonomy": []}) is True)
+    check("failures present but unclassified -> report",
+          sw({"fail": 3}, {"status": "healthy", "failure_taxonomy": []}) is True)
+
+    # --- write(): artifact only on real failure; benign/clean runs leave nothing ---
+    v = types.SimpleNamespace(os_type="windows", vol_version="vol3", profile=None)
+    good_health = rh.assess(FIX / "good_win", "windows")
+    none_path = cr.write(FIX / "good_win", "img.raw", v,
+                         "full", {"ok": 5, "fail": 0}, good_health)
+    check("healthy run writes NO crash_report", none_path is None, detail=str(none_path))
+
+    bug_health = rh.assess(FIX / "bug10_win", "windows")
+    out = cr.write(FIX / "bug10_win", "img.raw", v,
+                   "full", {"ok": 1, "fail": 0, "duration": 3.0}, bug_health)
+    try:
+        check("broken run writes crash_report.json",
+              out is not None and Path(out).is_file(), detail=str(out))
+        if out and Path(out).is_file():
+            data = json.loads(Path(out).read_text())
+            check("written report has broken status",
+                  data["run"]["status"] == "broken", detail=str(data["run"]))
+            check("ok_plugins excludes bookkeeping files",
+                  "run_health" not in data["ok_plugins"]
+                  and "crash_report" not in data["ok_plugins"])
+    finally:
+        if out and Path(out).is_file():
+            Path(out).unlink()  # keep fixtures pristine
+
+
 def main():
     for t in (test_corroborate_processes, test_classify_failure,
-              test_assess_fixtures, test_ioc_extractor):
+              test_assess_fixtures, test_ioc_extractor, test_crash_report):
         try:
             t()
         except Exception as exc:  # a crashing test is a failing test
