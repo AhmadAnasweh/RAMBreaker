@@ -1,0 +1,298 @@
+[
+  {
+    "Name": "0xfffffa80018b29e0:System",
+    "Pid": "4",
+    "PPid": "0",
+    "Thds": "69",
+    "Hnds": "496",
+    "Time": "2022-08-28 15:44:35 UTC+0000"
+  },
+  {
+    "Name": ". 0xfffffa801fbfc040:smss.exe",
+    "Pid": "224",
+    "PPid": "4",
+    "Thds": "2",
+    "Hnds": "29",
+    "Time": "2022-08-28 15:44:35 UTC+0000"
+  },
+  {
+    "Name": "0xfffffa80018bbb30:winlogon.exe",
+    "Pid": "396",
+    "PPid": "340",
+    "Thds": "6",
+    "Hnds": "117",
+    "Time": "2022-08-28 15:44:35 UTC+0000"
+  },
+  {
+    "Name": "0xfffffa8003369b30:csrss.exe",
+    "Pid": "356",
+    "PPid": "340",
+    "Thds": "7",
+    "Hnds": "188",
+    "Time": "2022-08-28 15:44:35 UTC+0000"
+  },
+  {
+    "Name": ". 0xfffffa8001b70630:conhost.exe",
+    "Pid": "2284",
+    "PPid": "356",
+    "Thds": "2",
+    "Hnds": "50",
+    "Time": "2022-08-28 15:46:40 UTC+0000"
+  },
+  {
+    "Name": "0xfffffa8003341930:csrss.exe",
+    "Pid": "300",
+    "PPid": "284",
+    "Thds": "8",
+    "Hnds": "403",
+    "Time": "2022-08-28 15:44:35 UTC+0000"
+  },
+  {
+    "Name": "0xfffffa80038fcb30:wininit.exe",
+    "Pid": "348",
+    "PPid": "284",
+    "Thds": "3",
+    "Hnds": "74",
+    "Time": "2022-08-28 15:44:35 UTC+0000"
+  },
+  {
+    "Name": ". 0xfffffa8003982740:services.exe",
+    "Pid": "440",
+    "PPid": "348",
+    "Thds": "12",
+    "Hnds": "196",
+    "Time": "2022-08-28 15:44:35 UTC+0000"
+  },
+  {
+    "Name": ".. 0xfffffa8003b37b30:spoolsv.exe",
+    "Pid": "656",
+    "PPid": "440",
+    "Thds": "12",
+    "Hnds": "264",
+    "Time": "2022-08-28 15:44:36 UTC+0000"
+  },
+  {
+    "Name": ".. 0xfffffa8003aa5060:svchost.exe",
+    "Pid": "788",
+    "PPid": "440",
+    "Thds": "18",
+    "Hnds": "331",
+    "Time": "2022-08-28 15:44:35 UTC+0000"
+  },
+  {
+    "Name": "... 0xfffffa80297f9310:dwm.exe",
+    "Pid": "1704",
+    "PPid": "788",
+    "Thds": "5",
+    "Hnds": "73",
+    "Time": "2022-08-28 15:45:30 UTC+0000"
+  },
+  {
+    "Name": ".. 0xfffffa80039bfb30:svchost.exe",
+    "Pid": "560",
+    "PPid": "440",
+    "Thds": "13",
+    "Hnds": "353",
+    "Time": "2022-08-28 15:44:35 UTC+0000"
+  },
+  {
+    "Name": "... 0xfffffa8001af7730:dllhost.exe",
+    "Pid": "2208",
+    "PPid": "560",
+    "Thds": "6",
+    "Hnds": "83",
+    "Time": "2022-08-28 15:46:40 UTC+0000"
+  },
+  {
+    "Name": "... 0xfffffa8001a8db30:WmiPrvSE.exe",
+    "Pid": "1744",
+    "PPid": "560",
+    "Thds": "8",
+    "Hnds": "121",
+    "Time": "2022-08-28 15:45:37 UTC+0000"
+  },
+  {
+    "Name": "... 0xfffffa8001a819e0:dllhost.exe",
+    "Pid": "2244",
+    "PPid": "560",
+    "Thds": "6",
+    "Hnds": "80",
+    "Time": "2022-08-28 15:46:40 UTC+0000"
+  },
+  {
+    "Name": ".. 0xfffffa8003ac4b30:svchost.exe",
+    "Pid": "944",
+    "PPid": "440",
+    "Thds": "13",
+    "Hnds": "269",
+    "Time": "2022-08-28 15:44:35 UTC+0000"
+  },
+  {
+    "Name": ".. 0xfffffa8001a97060:svchost.exe",
+    "Pid": "756",
+    "PPid": "440",
+    "Thds": "13",
+    "Hnds": "154",
+    "Time": "2022-08-28 15:46:36 UTC+0000"
+  },
+  {
+    "Name": ".. 0xfffffa8003aba1a0:svchost.exe",
+    "Pid": "836",
+    "PPid": "440",
+    "Thds": "48",
+    "Hnds": "1022",
+    "Time": "2022-08-28 15:44:35 UTC+0000"
+  },
+  {
+    "Name": "... 0xfffffa80255b3310:taskeng.exe",
+    "Pid": "1712",
+    "PPid": "836",
+    "Thds": "5",
+    "Hnds": "82",
+    "Time": "2022-08-28 15:45:30 UTC+0000"
+  },
+  {
+    "Name": ".. 0xfffffa8003a9e7c0:SearchIndexer.",
+    "Pid": "1400",
+    "PPid": "440",
+    "Thds": "14",
+    "Hnds": "592",
+    "Time": "2022-08-28 15:45:36 UTC+0000"
+  },
+  {
+    "Name": "... 0xfffffa8017d88b30:SearchFilterHo",
+    "Pid": "1808",
+    "PPid": "1400",
+    "Thds": "5",
+    "Hnds": "89",
+    "Time": "2022-08-28 15:46:12 UTC+0000"
+  },
+  {
+    "Name": "... 0xfffffa80105ff1d0:SearchProtocol",
+    "Pid": "2028",
+    "PPid": "1400",
+    "Thds": "8",
+    "Hnds": "278",
+    "Time": "2022-08-28 15:46:12 UTC+0000"
+  },
+  {
+    "Name": ".. 0xfffffa8001a96b30:sppsvc.exe",
+    "Pid": "1976",
+    "PPid": "440",
+    "Thds": "6",
+    "Hnds": "149",
+    "Time": "2022-08-28 15:46:37 UTC+0000"
+  },
+  {
+    "Name": ".. 0xfffffa8003f7c750:svchost.exe",
+    "Pid": "1492",
+    "PPid": "440",
+    "Thds": "7",
+    "Hnds": "95",
+    "Time": "2022-08-28 15:44:39 UTC+0000"
+  },
+  {
+    "Name": ".. 0xfffffa8001ab9b30:svchost.exe",
+    "Pid": "2040",
+    "PPid": "440",
+    "Thds": "15",
+    "Hnds": "328",
+    "Time": "2022-08-28 15:46:37 UTC+0000"
+  },
+  {
+    "Name": ".. 0xfffffa8003bb2980:svchost.exe",
+    "Pid": "1000",
+    "PPid": "440",
+    "Thds": "21",
+    "Hnds": "310",
+    "Time": "2022-08-28 15:44:36 UTC+0000"
+  },
+  {
+    "Name": ".. 0xfffffa8003a4ab30:svchost.exe",
+    "Pid": "680",
+    "PPid": "440",
+    "Thds": "21",
+    "Hnds": "455",
+    "Time": "2022-08-28 15:44:35 UTC+0000"
+  },
+  {
+    "Name": "... 0xfffffa8003ad43a0:audiodg.exe",
+    "Pid": "900",
+    "PPid": "680",
+    "Thds": "6",
+    "Hnds": "130",
+    "Time": "2022-08-28 15:44:35 UTC+0000"
+  },
+  {
+    "Name": ".. 0xfffffa8003a2c9e0:svchost.exe",
+    "Pid": "628",
+    "PPid": "440",
+    "Thds": "6",
+    "Hnds": "256",
+    "Time": "2022-08-28 15:44:35 UTC+0000"
+  },
+  {
+    "Name": ".. 0xfffffa8003b31b30:svchost.exe",
+    "Pid": "248",
+    "PPid": "440",
+    "Thds": "19",
+    "Hnds": "380",
+    "Time": "2022-08-28 15:44:36 UTC+0000"
+  },
+  {
+    "Name": ".. 0xfffffa8003c3cb30:taskhost.exe",
+    "Pid": "1660",
+    "PPid": "440",
+    "Thds": "9",
+    "Hnds": "148",
+    "Time": "2022-08-28 15:45:30 UTC+0000"
+  },
+  {
+    "Name": ". 0xfffffa800317fb30:lsass.exe",
+    "Pid": "448",
+    "PPid": "348",
+    "Thds": "7",
+    "Hnds": "485",
+    "Time": "2022-08-28 15:44:35 UTC+0000"
+  },
+  {
+    "Name": ". 0xfffffa80038ecb30:lsm.exe",
+    "Pid": "456",
+    "PPid": "348",
+    "Thds": "10",
+    "Hnds": "141",
+    "Time": "2022-08-28 15:44:35 UTC+0000"
+  },
+  {
+    "Name": "0xfffffa80111f8310:explorer.exe",
+    "Pid": "1732",
+    "PPid": "1680",
+    "Thds": "45",
+    "Hnds": "1009",
+    "Time": "2022-08-28 15:45:30 UTC+0000"
+  },
+  {
+    "Name": ". 0xfffffa8001b71730:DumpIt.exe",
+    "Pid": "2276",
+    "PPid": "1732",
+    "Thds": "2",
+    "Hnds": "45",
+    "Time": "2022-08-28 15:46:40 UTC+0000"
+  },
+  {
+    "Name": "0xfffffa8002680810:GoogleCrashHan",
+    "Pid": "316",
+    "PPid": "1888",
+    "Thds": "6",
+    "Hnds": "99",
+    "Time": "2022-08-28 15:45:33 UTC+0000"
+  },
+  {
+    "Name": "0xfffffa8003a95240:GoogleCrashHan",
+    "Pid": "808",
+    "PPid": "1888",
+    "Thds": "6",
+    "Hnds": "95",
+    "Time": "2022-08-28 15:45:33 UTC+0000"
+  }
+]

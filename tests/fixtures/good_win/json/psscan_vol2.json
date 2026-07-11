@@ -1,0 +1,335 @@
+[
+  {
+    "Offset(P)": "0x0000000006bb9310",
+    "Name": "dwm.exe",
+    "PID": "1704",
+    "PPID": "788",
+    "PDB": "0x0000000064bb8000",
+    "Time created": "2022-08-28 15:45:30 UTC+0000",
+    "Time exited": ""
+  },
+  {
+    "Offset(P)": "0x000000000aeec310",
+    "Name": "taskeng.exe",
+    "PID": "1712",
+    "PPID": "836",
+    "PDB": "0x0000000065879000",
+    "Time created": "2022-08-28 15:45:30 UTC+0000",
+    "Time exited": ""
+  },
+  {
+    "Offset(P)": "0x00000000104d4040",
+    "Name": "smss.exe",
+    "PID": "224",
+    "PPID": "4",
+    "PDB": "0x0000000060804000",
+    "Time created": "2022-08-28 15:44:35 UTC+0000",
+    "Time exited": ""
+  },
+  {
+    "Offset(P)": "0x0000000018124b30",
+    "Name": "SearchFilterHo",
+    "PID": "1808",
+    "PPID": "1400",
+    "PDB": "0x000000005706b000",
+    "Time created": "2022-08-28 15:46:12 UTC+0000",
+    "Time exited": ""
+  },
+  {
+    "Offset(P)": "0x000000001efe1310",
+    "Name": "explorer.exe",
+    "PID": "1732",
+    "PPID": "1680",
+    "PDB": "0x0000000065bfc000",
+    "Time created": "2022-08-28 15:45:30 UTC+0000",
+    "Time exited": ""
+  },
+  {
+    "Offset(P)": "0x000000001fd9b1d0",
+    "Name": "SearchProtocol",
+    "PID": "2028",
+    "PPID": "1400",
+    "PDB": "0x0000000058561000",
+    "Time created": "2022-08-28 15:46:12 UTC+0000",
+    "Time exited": ""
+  },
+  {
+    "Offset(P)": "0x000000007d97c750",
+    "Name": "svchost.exe",
+    "PID": "1492",
+    "PPID": "440",
+    "PDB": "0x0000000068758000",
+    "Time created": "2022-08-28 15:44:39 UTC+0000",
+    "Time exited": ""
+  },
+  {
+    "Offset(P)": "0x000000007da3cb30",
+    "Name": "taskhost.exe",
+    "PID": "1660",
+    "PPID": "440",
+    "PDB": "0x00000000649a8000",
+    "Time created": "2022-08-28 15:45:30 UTC+0000",
+    "Time exited": ""
+  },
+  {
+    "Offset(P)": "0x000000007dc2c9e0",
+    "Name": "svchost.exe",
+    "PID": "628",
+    "PPID": "440",
+    "PDB": "0x0000000072ffc000",
+    "Time created": "2022-08-28 15:44:35 UTC+0000",
+    "Time exited": ""
+  },
+  {
+    "Offset(P)": "0x000000007dc4ab30",
+    "Name": "svchost.exe",
+    "PID": "680",
+    "PPID": "440",
+    "PDB": "0x0000000058e09000",
+    "Time created": "2022-08-28 15:44:35 UTC+0000",
+    "Time exited": ""
+  },
+  {
+    "Offset(P)": "0x000000007dc95240",
+    "Name": "GoogleCrashHan",
+    "PID": "808",
+    "PPID": "1888",
+    "PDB": "0x000000005e75c000",
+    "Time created": "2022-08-28 15:45:33 UTC+0000",
+    "Time exited": ""
+  },
+  {
+    "Offset(P)": "0x000000007dc9e7c0",
+    "Name": "SearchIndexer.",
+    "PID": "1400",
+    "PPID": "440",
+    "PDB": "0x000000005f18e000",
+    "Time created": "2022-08-28 15:45:36 UTC+0000",
+    "Time exited": ""
+  },
+  {
+    "Offset(P)": "0x000000007dca5060",
+    "Name": "svchost.exe",
+    "PID": "788",
+    "PPID": "440",
+    "PDB": "0x0000000057210000",
+    "Time created": "2022-08-28 15:44:35 UTC+0000",
+    "Time exited": ""
+  },
+  {
+    "Offset(P)": "0x000000007dcba1a0",
+    "Name": "svchost.exe",
+    "PID": "836",
+    "PPID": "440",
+    "PDB": "0x0000000056c15000",
+    "Time created": "2022-08-28 15:44:35 UTC+0000",
+    "Time exited": ""
+  },
+  {
+    "Offset(P)": "0x000000007dcc4b30",
+    "Name": "svchost.exe",
+    "PID": "944",
+    "PPID": "440",
+    "PDB": "0x000000006e327000",
+    "Time created": "2022-08-28 15:44:35 UTC+0000",
+    "Time exited": ""
+  },
+  {
+    "Offset(P)": "0x000000007dcd43a0",
+    "Name": "audiodg.exe",
+    "PID": "900",
+    "PPID": "680",
+    "PDB": "0x0000000056006000",
+    "Time created": "2022-08-28 15:44:35 UTC+0000",
+    "Time exited": ""
+  },
+  {
+    "Offset(P)": "0x000000007dd31b30",
+    "Name": "svchost.exe",
+    "PID": "248",
+    "PPID": "440",
+    "PDB": "0x000000006ae38000",
+    "Time created": "2022-08-28 15:44:36 UTC+0000",
+    "Time exited": ""
+  },
+  {
+    "Offset(P)": "0x000000007dd37b30",
+    "Name": "spoolsv.exe",
+    "PID": "656",
+    "PPID": "440",
+    "PDB": "0x000000006bc48000",
+    "Time created": "2022-08-28 15:44:36 UTC+0000",
+    "Time exited": ""
+  },
+  {
+    "Offset(P)": "0x000000007ddb2980",
+    "Name": "svchost.exe",
+    "PID": "1000",
+    "PPID": "440",
+    "PDB": "0x000000006c7d1000",
+    "Time created": "2022-08-28 15:44:36 UTC+0000",
+    "Time exited": ""
+  },
+  {
+    "Offset(P)": "0x000000007deecb30",
+    "Name": "lsm.exe",
+    "PID": "456",
+    "PPID": "348",
+    "PDB": "0x0000000073073000",
+    "Time created": "2022-08-28 15:44:35 UTC+0000",
+    "Time exited": ""
+  },
+  {
+    "Offset(P)": "0x000000007defcb30",
+    "Name": "wininit.exe",
+    "PID": "348",
+    "PPID": "284",
+    "PDB": "0x00000000746d3000",
+    "Time created": "2022-08-28 15:44:35 UTC+0000",
+    "Time exited": ""
+  },
+  {
+    "Offset(P)": "0x000000007df82740",
+    "Name": "services.exe",
+    "PID": "440",
+    "PPID": "348",
+    "PDB": "0x0000000072849000",
+    "Time created": "2022-08-28 15:44:35 UTC+0000",
+    "Time exited": ""
+  },
+  {
+    "Offset(P)": "0x000000007dfbfb30",
+    "Name": "svchost.exe",
+    "PID": "560",
+    "PPID": "440",
+    "PDB": "0x00000000726ba000",
+    "Time created": "2022-08-28 15:44:35 UTC+0000",
+    "Time exited": ""
+  },
+  {
+    "Offset(P)": "0x000000007e541930",
+    "Name": "csrss.exe",
+    "PID": "300",
+    "PPID": "284",
+    "PDB": "0x0000000074ecd000",
+    "Time created": "2022-08-28 15:44:35 UTC+0000",
+    "Time exited": ""
+  },
+  {
+    "Offset(P)": "0x000000007e569b30",
+    "Name": "csrss.exe",
+    "PID": "356",
+    "PPID": "340",
+    "PDB": "0x00000000746c1000",
+    "Time created": "2022-08-28 15:44:35 UTC+0000",
+    "Time exited": ""
+  },
+  {
+    "Offset(P)": "0x000000007e77fb30",
+    "Name": "lsass.exe",
+    "PID": "448",
+    "PPID": "348",
+    "PDB": "0x0000000072b69000",
+    "Time created": "2022-08-28 15:44:35 UTC+0000",
+    "Time exited": ""
+  },
+  {
+    "Offset(P)": "0x000000007f080810",
+    "Name": "GoogleCrashHan",
+    "PID": "316",
+    "PPID": "1888",
+    "PDB": "0x0000000046012000",
+    "Time created": "2022-08-28 15:45:33 UTC+0000",
+    "Time exited": ""
+  },
+  {
+    "Offset(P)": "0x000000007fc819e0",
+    "Name": "dllhost.exe",
+    "PID": "2244",
+    "PPID": "560",
+    "PDB": "0x0000000046e94000",
+    "Time created": "2022-08-28 15:46:40 UTC+0000",
+    "Time exited": ""
+  },
+  {
+    "Offset(P)": "0x000000007fc8db30",
+    "Name": "WmiPrvSE.exe",
+    "PID": "1744",
+    "PPID": "560",
+    "PDB": "0x000000005c271000",
+    "Time created": "2022-08-28 15:45:37 UTC+0000",
+    "Time exited": ""
+  },
+  {
+    "Offset(P)": "0x000000007fc96b30",
+    "Name": "sppsvc.exe",
+    "PID": "1976",
+    "PPID": "440",
+    "PDB": "0x0000000053cb2000",
+    "Time created": "2022-08-28 15:46:37 UTC+0000",
+    "Time exited": ""
+  },
+  {
+    "Offset(P)": "0x000000007fc97060",
+    "Name": "svchost.exe",
+    "PID": "756",
+    "PPID": "440",
+    "PDB": "0x0000000053f98000",
+    "Time created": "2022-08-28 15:46:36 UTC+0000",
+    "Time exited": ""
+  },
+  {
+    "Offset(P)": "0x000000007fcb9b30",
+    "Name": "svchost.exe",
+    "PID": "2040",
+    "PPID": "440",
+    "PDB": "0x00000000533b8000",
+    "Time created": "2022-08-28 15:46:37 UTC+0000",
+    "Time exited": ""
+  },
+  {
+    "Offset(P)": "0x000000007fcf7730",
+    "Name": "dllhost.exe",
+    "PID": "2208",
+    "PPID": "560",
+    "PDB": "0x0000000046046000",
+    "Time created": "2022-08-28 15:46:40 UTC+0000",
+    "Time exited": ""
+  },
+  {
+    "Offset(P)": "0x000000007fd70630",
+    "Name": "conhost.exe",
+    "PID": "2284",
+    "PPID": "356",
+    "PDB": "0x0000000046450000",
+    "Time created": "2022-08-28 15:46:40 UTC+0000",
+    "Time exited": ""
+  },
+  {
+    "Offset(P)": "0x000000007fd71730",
+    "Name": "DumpIt.exe",
+    "PID": "2276",
+    "PPID": "1732",
+    "PDB": "0x0000000046f4b000",
+    "Time created": "2022-08-28 15:46:40 UTC+0000",
+    "Time exited": ""
+  },
+  {
+    "Offset(P)": "0x000000007ffab9e0",
+    "Name": "System",
+    "PID": "4",
+    "PPID": "0",
+    "PDB": "0x0000000000187000",
+    "Time created": "2022-08-28 15:44:35 UTC+0000",
+    "Time exited": ""
+  },
+  {
+    "Offset(P)": "0x000000007ffb4b30",
+    "Name": "winlogon.exe",
+    "PID": "396",
+    "PPID": "340",
+    "PDB": "0x00000000743c7000",
+    "Time created": "2022-08-28 15:44:35 UTC+0000",
+    "Time exited": ""
+  }
+]

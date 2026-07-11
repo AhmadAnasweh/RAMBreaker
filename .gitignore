@@ -57,3 +57,7 @@ Thumbs.db
 # --- Explicitly KEEP tool data that would otherwise look ignorable ---
 !data/linux_symbol_catalogue.json.xz
 !tests/fixtures/**
+# ...but fixtures are INPUTS: never track artifacts a test run writes into them.
+tests/fixtures/**/run_health.json
+tests/fixtures/**/SUMMARY.txt
+run_health.json
