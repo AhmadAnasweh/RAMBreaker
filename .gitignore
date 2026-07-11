@@ -1,0 +1,59 @@
+# RAMBreaker / CresCentC — version-control the TOOL only.
+# This is a forensics tool: analysis output is evidence-derived (carved files,
+# strings, NTLM hashes, PII from a target's RAM) and must NEVER enter git.
+# Strategy: whitelist tool code by ignoring everything evidence/scratch-shaped,
+# wherever it appears in the tree (in case someone runs with `-o .`).
+
+# --- Scratch / working dirs (recreated on demand) ---
+CresCentC_work/
+CresCentC_RESULTS/
+*_RESULTS/
+_isf_build/*.ddeb
+_isf_build/*.deb
+_isf_build/*.json
+_isf_build/*.json.xz
+_isf_build/tmp/
+
+# --- Memory images (never commit evidence) ---
+*.raw
+*.mem
+*.lime
+*.vmem
+*.vmss
+*.vmsn
+*.dmp
+*.core
+*.img
+*.crash
+
+# --- Analysis output (evidence-derived) ---
+dumped_files/
+dumped_processes/
+**/json/
+**/txt/
+**/iocs/
+**/report.html
+**/SUMMARY.txt
+**/correlation_report.txt
+**/network_map.txt
+**/process_tree.txt
+**/mitre_report.txt
+**/strings*.txt
+**/*.log
+crescent_toolkit.log
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+
+# --- OS cruft ---
+.DS_Store
+Thumbs.db
+
+# --- Explicitly KEEP tool data that would otherwise look ignorable ---
+!data/linux_symbol_catalogue.json.xz
+!tests/fixtures/**
