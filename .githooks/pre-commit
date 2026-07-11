@@ -1,0 +1,41 @@
+#!/bin/sh
+# RAMBreaker pre-commit hook — run the zero-dependency test suites before a commit.
+#
+#   Tier-A  (tests/run_tests.py)  — pure logic: run_health, crash_report, IOC,
+#                                    scrub, telemetry, download integrity, XSS.
+#   Tier-B  (tests/run_canary.py) — drives the REAL extraction pipeline against a
+#                                    fake Vol3 (subprocess/parse/demotion/sidecar/
+#                                    resume/run_health/crash_report/HTML report).
+#
+# Both are fast (~2 s total) and need no memory image. A failing suite BLOCKS the
+# commit. Bypass in a genuine emergency with:  git commit --no-verify
+#
+# Enabled per-clone via:  git config core.hooksPath .githooks
+# (this hook lives in-repo so it is version-controlled and shared.)
+
+root=$(git rev-parse --show-toplevel) || exit 0
+cd "$root" || exit 0
+
+if ! command -v python3 >/dev/null 2>&1; then
+    echo "pre-commit: python3 not found — skipping tests (install python3 to enable)." >&2
+    exit 0
+fi
+
+run_suite() {
+    # $1 = label, $2 = script
+    log=$(mktemp)
+    if python3 "$2" >"$log" 2>&1; then
+        printf 'pre-commit: %-7s OK  (%s)\n' "$1" "$(tail -n 1 "$log")"
+        rm -f "$log"
+        return 0
+    fi
+    echo "pre-commit: $1 FAILED — commit blocked:" >&2
+    tail -n 30 "$log" >&2
+    echo "  bypass (not recommended): git commit --no-verify" >&2
+    rm -f "$log"
+    return 1
+}
+
+run_suite "Tier-A" tests/run_tests.py  || exit 1
+run_suite "canary" tests/run_canary.py || exit 1
+exit 0
