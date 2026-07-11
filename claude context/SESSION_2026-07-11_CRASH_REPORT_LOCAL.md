@@ -111,6 +111,26 @@ canonical "real problem" case the artifact exists for.
 taxonomy carrying `/home/kali/RAMDUMPS/secret.raw @ 0xdeadbeef` scrubs to
 `<path> @ <addr>` with a passing no-leak assertion.
 
+## Follow-up: silent new-kernel failure fixes ①/② (same session)
+
+Analysis of new-kernel handling (documented in `FUTURE_CRASH_REPORTING.md` →
+"Known blind spots") surfaced four gaps; ①②④ were fixed, ③ deferred:
+
+- **① `_run_vol3` demotion** (`volatility.py::_vol3_success`, pure/testable): a
+  Linux/macOS plugin that exits `0` with an empty result **and** a systemic stderr
+  exception (struct drift / stub ISF) is no longer counted as a clean-empty
+  success — it's a failure, and its stderr is kept, not discarded. Guarded so
+  genuinely clean-empty plugins stay success (verified on real Kali Vol3 output).
+- **② resume sidecar** (`_write_error_marker` + resume check in all three
+  extractors): a failed plugin leaves a `<name>.json.error` sidecar so a re-run
+  re-executes it instead of trusting stale/partial JSON. Inert to every `*.json`
+  glob (verified).
+- **④** is fixed *by ①* (the demoted failure now reaches the `struct-mismatch →
+  "bump Vol3"` classifier); **③** (advisory "usually-not-empty" corroboration) is
+  deferred — high false-positive risk, needs calibration.
+
+Tests: `tests/run_tests.py::test_vol3_demotion` (+19) → **69/69** green.
+
 ## Next (Step 2, not built)
 
 Opt-in transport: `install_id` + first-run consent (show sample payload),

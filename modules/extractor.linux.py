@@ -121,7 +121,12 @@ class Extractor:
             if skip_existing:
                 exp = self._expected_json(p)
                 jp = jd / exp
-                if jp.exists() and jp.stat().st_size > 10:
+                # A '<name>.json.error' sidecar means the previous run of this
+                # plugin failed (including a silent/demoted failure) — re-run it,
+                # don't trust the stale/partial JSON left behind.
+                if (jd / (exp + ".error")).exists():
+                    self.log.info("Resume: re-running %s (previous run failed)", p)
+                elif jp.exists() and jp.stat().st_size > 10:
                     try:
                         content = jp.read_text(
                             encoding="utf-8", errors="ignore")[:2000].lower()

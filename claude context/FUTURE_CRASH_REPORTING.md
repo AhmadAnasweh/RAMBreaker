@@ -147,8 +147,9 @@ healthy run, `crash_report.json` on a broken one).
 ## Known blind spots — silent new-kernel failures (analysis 2026-07-11)
 
 run_health + crash_report make *loud* failures loud, but a **new kernel** tends to
-fail *silently*, and the current code still lets several of those through. Ranked
-by risk:
+fail *silently*. The four blind spots below were found by analysis; **①②④ are now
+fixed and ③ is deliberately deferred** (see "Status of fixes" after the list).
+Ranked by risk:
 
 1. **Linux/macOS false-success on `rc==0` + empty output** — *the main gap.*
    `volatility.py::_run_vol3` (≈L556–575): for Linux/macOS, success is `rc==0`
@@ -180,22 +181,37 @@ by risk:
    (rc!=0, logged `FAILED`). The highest-risk new-kernel drifts are the silent
    rc=0 ones from (1), which never reach that message.
 
-**Suggested fixes (not yet built), cheapest first:**
-- In `_run_vol3`, when `rc==0` but the JSON is empty **and** stderr carries an
-  `AttributeError`/`not present in template`/`Unhandled exception`, downgrade to
-  `success=False` (or a new `success="suspect"`) and **keep the stderr** — this
-  alone closes (1), (2-via-marker), and feeds (4)'s classifier. Guard it so a
-  legitimately-empty plugin on a clean host (check_modules/tty_check) isn't
-  demoted: only demote when stderr has a real exception signature.
-- Add the empty-but-errored plugins to `_BAD_MARKERS` handling by writing the
-  stderr signature into the JSON stub (e.g. `[]` → `{"_error": "<class>"}`) so
-  resume re-runs them.
-- Widen `run_health` corroboration with a small per-OS "these usually aren't
-  empty on a real host" list (advisory WARN, never a verdict).
+**Status of fixes:**
+
+- **① FIXED** — `volatility.py::_vol3_success()` (pure/testable) now demotes the
+  silent case: on Linux/macOS, `rc==0` + empty result + a *systemic* stderr
+  exception (`_is_plugin_exception`: `AttributeError`/`not present in template`/
+  `Unhandled exception`/traceback) is a **failure**, not a clean-empty success.
+  The distilled stderr is kept (returned as the plugin's `error`) and, even when
+  the result is *non-empty* (partial), the exception is now logged instead of
+  discarded. Guarded so a genuinely clean-empty plugin (`check_modules`/`tty_check`
+  on a quiet host, no stderr exception) stays a success — verified on real Kali
+  Vol3 output (pslist/check_modules not demoted).
+- **② FIXED** — a failed plugin now leaves a `<name>.json.error` sidecar
+  (`_write_error_marker`, written at every failure return of `_run_vol3`/`_run_vol2`,
+  cleared on success). The resume logic in all three extractors re-runs any plugin
+  with a sidecar instead of trusting stale/partial JSON. The sidecar is inert to
+  every `*.json` glob and the `suffix == ".json"` / OS-heuristic scans (verified).
+- **④ FIXED-by-①** — no separate code. ④ was a *consequence* of ①'s blindness:
+  once the silent failure is demoted to a real `FAILED` with its stderr, it flows
+  through `run_health._classify_log_failures → classify_failure → struct-mismatch`,
+  which already prints "bump Vol3". We deliberately do **not** auto-bump the pin
+  (reproducibility is the point of `TOOLCHAIN.lock`).
+- **③ NOT built (deliberately)** — widening corroboration to "these plugins
+  usually aren't empty" is an advisory heuristic with high false-positive risk:
+  `malfind`/`check_syscall`/`tty_check`/`check_modules` are *legitimately* empty on
+  a clean host, and a false "lsmod is empty!" WARN violates the tool's core
+  "evidence, not verdicts / no false alarms" principle. It needs real-world
+  calibration data before it can ship, and is lower-leverage than ①. Deferred.
 
 The kernel banner needed to *act* on any of these was itself being lost on the
-cached-symbol path — fixed this session (`_persist_kernel_if_missing`), so a
-future crash_report from a new-kernel box now carries `target.kernel/distro`.
+cached-symbol path — also fixed (`_persist_kernel_if_missing`), so a crash_report
+from a new-kernel box now carries `target.kernel/distro`.
 
 ### What's left for Step 2 (transport)
 `install_id` generation + first-run consent prompt showing a sample payload;

@@ -53,6 +53,78 @@ def _meaningful_stderr(stderr: str, limit: int = 500) -> str:
     return meaningful[-1][-limit:]
 
 
+def _is_empty_result(content: str) -> bool:
+    """True if a Vol3 JSON body carries no data rows ('', '[]', '{}' modulo
+    whitespace). Pure/testable."""
+    compact = re.sub(r"\s+", "", content or "")
+    return compact in ("", "[]", "{}")
+
+
+def _is_plugin_exception(err_msg: str) -> bool:
+    """True if distilled stderr shows a *systemic* plugin/framework failure — a
+    new-kernel struct drift or an incomplete ISF — as opposed to a benign warning.
+
+    Signatures: an incomplete-ISF 'member not present in template', an
+    'Unhandled exception' / full traceback, or a bare exception-type line
+    ('AttributeError: …', 'TypeError: …') as produced by _meaningful_stderr.
+    Warnings and user interrupts/exits are deliberately excluded. Pure/testable."""
+    if not err_msg:
+        return False
+    low = err_msg.lower()
+    if "not present in template" in low:
+        return True
+    if "unhandled exception" in low or "traceback (most recent call last)" in low:
+        return True
+    return bool(re.match(r'^[A-Za-z_][\w.]*(Error|Exception):', err_msg))
+
+
+def _vol3_success(returncode: int, output: str, err_msg: str, os_type: str) -> bool:
+    """Decide whether a Vol3 plugin run succeeded. Pure/testable.
+
+    Beyond the obvious (non-zero rc or an error banner in stdout => failure), this
+    demotes the *silent new-kernel failure*: on Linux/macOS a plugin that exits 0
+    but produced NO rows while logging a systemic exception to stderr (a changed
+    kernel struct or a stub ISF) is NOT a clean-empty success — it is a failure
+    whose stderr must be surfaced, not discarded. A genuinely clean-but-empty
+    plugin (check_modules/tty_check on a quiet host) has no such stderr and stays
+    a success."""
+    content = (output or "").strip()
+    low = content.lower()
+    has_error = (low.startswith(("error", "exception", "traceback"))
+                 or "unsatisfied requirement" in low
+                 or "a translation layer requirement was not fulfilled" in low
+                 or "a symbol table requirement was not fulfilled" in low)
+    if returncode != 0 or has_error:
+        return False
+    if os_type in ("linux", "mac"):
+        # Silent struct/symbol failure: rc=0, empty result, but an exception on
+        # stderr. Everything else (real rows, or empty with clean stderr) is OK.
+        if _is_empty_result(content) and _is_plugin_exception(err_msg):
+            return False
+        return True
+    # Windows: keep requiring real content (empty '[]' was already a failure).
+    return len(content) > 10
+
+
+def _write_error_marker(out_path, ok: bool, error: str) -> None:
+    """Leave (or clear) a '<name>.json.error' sidecar next to a plugin's JSON.
+
+    The extractor's resume/skip-existing logic trusts an existing JSON that looks
+    valid — so a silent failure that left empty/partial output would be skipped on
+    a re-run, caching the failure as good. A sidecar makes the failure durable:
+    resume re-runs any plugin that has one. Cleared on success so a recovered
+    plugin is not needlessly re-run. Best-effort; never raises."""
+    marker = Path(str(out_path) + ".error")
+    try:
+        if ok:
+            if marker.exists():
+                marker.unlink()
+        else:
+            marker.write_text((error or "failed")[:500], encoding="utf-8")
+    except Exception:
+        pass
+
+
 class VolatilityWrapper:
     """Unified wrapper around Volatility 2 and 3.
 
@@ -554,40 +626,41 @@ class VolatilityWrapper:
             self.log.debug("Exit code: %d, Duration: %.1fs, Output: %s",
                            proc.returncode, dur, _size_str(len(output)))
             content = output.strip()
-            low = content.lower()
-            has_error = (low.startswith(("error", "exception", "traceback"))
-                         or "unsatisfied requirement" in low
-                         or "a translation layer requirement was not fulfilled" in low
-                         or "a symbol table requirement was not fulfilled" in low)
-            if proc.returncode == 0 and not has_error:
-                # For Linux/macOS, rc=0 with an empty JSON result ("[]") is a
-                # valid outcome, not a failure: many plugins legitimately find
-                # nothing (e.g. check_modules/tty_check on a clean system, or no
-                # recovered bash history). This mirrors the Vol2 path, which
-                # already treats rc=0 + empty as success for Linux. A genuine
-                # plugin error (missing symbol type, etc.) exits non-zero and is
-                # still caught above. For Windows we keep requiring real content.
-                if self.os_type in ("linux", "mac"):
-                    ok = True
-                else:
-                    ok = len(content) > 10
-            else:
-                ok = False
+            # Distil stderr FIRST — it is the only place a silent new-kernel
+            # struct drift shows up (rc=0, empty JSON, AttributeError on stderr).
             err_msg = _meaningful_stderr(proc.stderr) if proc.stderr else ""
+            # Success decision (pure): non-zero rc / error banner => fail; on
+            # Linux/macOS an rc=0-but-empty run that logged a systemic exception is
+            # demoted from the old blanket "empty == success". See _vol3_success.
+            ok = _vol3_success(proc.returncode, output, err_msg, self.os_type)
             if not ok and err_msg:
                 self.log.warning("%s: %s", plugin, err_msg[:300])
+            elif ok and _is_plugin_exception(err_msg):
+                # Kept the result (it had rows) but the plugin logged a struct/
+                # symbol exception — surface it so a new-kernel drift is not
+                # silently discarded on an otherwise "successful" run.
+                self.log.warning("%s: completed but logged an exception "
+                                 "(results may be incomplete): %s",
+                                 plugin, err_msg[:300])
+            # Resume marker: a failed plugin leaves a <name>.json.error sidecar so
+            # a later re-run re-executes it instead of trusting stale/partial
+            # output (fixes resume cache-poisoning on silent failures). Removed on
+            # success so a recovered plugin is not needlessly re-run.
+            _write_error_marker(out_path, ok, err_msg or f"exit {proc.returncode}")
             return {"success": ok, "plugin": plugin, "output_file": str(out_path),
                     "duration": dur, "returncode": proc.returncode,
                     "error": err_msg if not ok else ""}
         except subprocess.TimeoutExpired:
             dur = time.time() - start
             self.log.error("%s timed out after %ds", plugin, tmo)
+            _write_error_marker(out_path, False, f"Timeout after {tmo}s")
             return {"success": False, "plugin": plugin, "output_file": str(out_path),
                     "duration": dur, "returncode": -1,
                     "error": f"Timeout after {tmo}s"}
         except Exception as exc:
             dur = time.time() - start
             self.log.error("%s exception: %s", plugin, exc)
+            _write_error_marker(out_path, False, str(exc))
             return {"success": False, "plugin": plugin, "output_file": str(out_path),
                     "duration": dur, "returncode": -1, "error": str(exc)}
 
@@ -624,18 +697,22 @@ class VolatilityWrapper:
                 ok = (proc.returncode == 0 and len(parsed) > 0)
             if not ok and proc.stderr:
                 self.log.warning("%s: %s", plugin, proc.stderr[:300].strip())
+            _write_error_marker(out_path, ok, proc.stderr[:500] if proc.stderr
+                                else f"exit {proc.returncode}")
             return {"success": ok, "plugin": plugin, "output_file": str(out_path),
                     "duration": dur, "returncode": proc.returncode,
                     "error": proc.stderr[:500] if not ok else ""}
         except subprocess.TimeoutExpired:
             dur = time.time() - start
             self.log.error("%s timed out after %ds", plugin, tmo)
+            _write_error_marker(out_path, False, f"Timeout after {tmo}s")
             return {"success": False, "plugin": plugin, "output_file": str(out_path),
                     "duration": dur, "returncode": -1,
                     "error": f"Timeout after {tmo}s"}
         except Exception as exc:
             dur = time.time() - start
             self.log.error("%s exception: %s", plugin, exc)
+            _write_error_marker(out_path, False, str(exc))
             return {"success": False, "plugin": plugin, "output_file": str(out_path),
                     "duration": dur, "returncode": -1, "error": str(exc)}
 

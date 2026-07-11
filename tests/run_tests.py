@@ -242,9 +242,66 @@ def test_crash_report():
             Path(out).unlink()  # keep fixtures pristine
 
 
+def test_vol3_demotion():
+    from modules.volatility import (_vol3_success, _is_empty_result,
+                                    _is_plugin_exception, _write_error_marker)
+    print("[vol3 silent-failure demotion]")
+    ATTR = "AttributeError: 'module' object has no attribute 'taint_flag'"
+
+    # _is_empty_result
+    check("'[]' is empty", _is_empty_result("[]"))
+    check("'[\\n]' is empty (whitespace-tolerant)", _is_empty_result("[\n]"))
+    check("real rows not empty", not _is_empty_result('[{"pid":1}]'))
+
+    # _is_plugin_exception — systemic only, no benign demotes
+    check("AttributeError -> exception", _is_plugin_exception(ATTR))
+    check("not-present-in-template -> exception",
+          _is_plugin_exception("Member not present in template: mnt"))
+    check("clean banner -> not exception",
+          not _is_plugin_exception("Volatility 3 Framework 2.28.1"))
+    check("warning -> not exception (won't demote)",
+          not _is_plugin_exception("UserWarning: deprecated"))
+    check("empty stderr -> not exception", not _is_plugin_exception(""))
+
+    # _vol3_success — the core new-kernel demotion
+    check("linux rc0 + rows -> success",
+          _vol3_success(0, '[{"pid":1}]', "", "linux"))
+    check("linux rc0 + clean-empty -> success (no false demote)",
+          _vol3_success(0, "[]", "", "linux"))
+    check("linux rc0 + EMPTY + struct exc -> DEMOTED to fail",
+          not _vol3_success(0, "[]", ATTR, "linux"))
+    check("linux rc0 + ROWS + struct exc -> kept (evidence-preserving)",
+          _vol3_success(0, '[{"pid":1}]', ATTR, "linux"))
+    check("mac rc0 + empty + struct exc -> DEMOTED",
+          not _vol3_success(0, "[]", ATTR, "mac"))
+    check("rc!=0 -> fail", not _vol3_success(1, '[{"pid":1}]', "", "linux"))
+    check("stdout 'Unsatisfied requirement' -> fail",
+          not _vol3_success(0, "Unsatisfied requirement for kernel", "", "linux"))
+    check("windows rc0 + empty -> fail (unchanged)",
+          not _vol3_success(0, "[]", "", "windows"))
+    check("windows rc0 + real rows -> success (unchanged)",
+          _vol3_success(0, '[{"pid":1,"name":"System"}]', "", "windows"))
+
+    # _write_error_marker — resume sidecar lifecycle (fixes cache poisoning)
+    import tempfile, shutil
+    d = Path(tempfile.mkdtemp())
+    try:
+        jp = d / "linux_lsmod_Lsmod.json"
+        jp.write_text("[]")
+        marker = Path(str(jp) + ".error")
+        _write_error_marker(jp, False, ATTR)
+        check("failure leaves .error sidecar",
+              marker.exists() and "taint_flag" in marker.read_text())
+        _write_error_marker(jp, True, "")
+        check("success clears .error sidecar", not marker.exists())
+    finally:
+        shutil.rmtree(d, ignore_errors=True)
+
+
 def main():
     for t in (test_corroborate_processes, test_classify_failure,
-              test_assess_fixtures, test_ioc_extractor, test_crash_report):
+              test_assess_fixtures, test_ioc_extractor, test_crash_report,
+              test_vol3_demotion):
         try:
             t()
         except Exception as exc:  # a crashing test is a failing test
