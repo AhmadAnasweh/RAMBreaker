@@ -227,3 +227,21 @@ class Extractor:
         ]
         s.write_text("\n".join(lines) + "\n", encoding="utf-8")
         self.log.info("Summary written to %s", s)
+
+        # Run-health: corroboration guard + failure taxonomy. Appends a health
+        # banner to SUMMARY.txt, writes run_health.json, and logs loud warnings
+        # for red flags so a silently-incomplete run can't pass as clean.
+        try:
+            from modules import run_health
+            health = run_health.assess(output_dir, "mac", mode, results)
+            with open(s, "a", encoding="utf-8") as fh:
+                fh.write("\n".join(health["banner"]) + "\n")
+            for f in health.get("findings", []):
+                lvl = (self.log.error if f["severity"] == run_health.CRITICAL
+                       else self.log.warning if f["severity"] == run_health.WARN
+                       else self.log.info)
+                lvl("RUN HEALTH: %s", f["message"])
+            if health["status"] != "healthy":
+                self.log.warning("RUN HEALTH status: %s", health["status"])
+        except Exception as e:
+            self.log.warning("run_health assessment skipped: %s", e)
