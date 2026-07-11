@@ -93,13 +93,18 @@ leak-clean, with the pagecache failure correctly classified `timeout` (a *real*
 failure, not benign) and the empty-network finding carried through. This is the
 canonical "real problem" case the artifact exists for.
 
-  *Known limitation observed here:* this run reused **cached** ISF symbols
-  ("Symbols already working"), so `linux_resolver` short-circuited before writing
-  `json/linux_kernel.json` — the file the report reads for `target.kernel/distro`.
-  With no banner anywhere in the output, both fields came back `""` (the graceful
-  absent-source fallback, unit-tested). A fresh (cold-symbol) Linux run does write
-  that file and would populate them. Worth a future tweak so the banner is
-  persisted even on the cached fast path.
+  *Limitation found here → FIXED:* this run reused **cached** ISF symbols
+  ("Symbols already working"), so `linux_resolver.linux.resolve_symbols`
+  short-circuited before writing `json/linux_kernel.json` — the file the report
+  reads for `target.kernel/distro` — leaving both `""`. Fixed by
+  `_persist_kernel_if_missing()`: on the already-working fast path, if the file is
+  absent, do the same fast strings-based banner scan + ranking the resolver
+  already trusts and persist the top candidate. Guarded (skips when present) and
+  wrapped (can't slow/break a working run). Validated on `kalilinux.lime`: writes
+  kernel `6.12.13-amd64`, and `crash_report.target` now reads
+  `{kernel: 6.12.13-amd64, distro: Kali}` — with the banner's builder identity
+  (`devel@kali.org`) correctly **not** retained. The macOS resolver already writes
+  the file before its already-working check, so this gap was Linux-only.
 
 **Fixtures + synthetic** (offline, in the test suite): a broken-run report
 (`bug10_win`, pslist=0/psscan=5) is written with status `broken`; a synthetic

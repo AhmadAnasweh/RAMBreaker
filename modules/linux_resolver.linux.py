@@ -875,6 +875,34 @@ def _write_kernel_json(output_dir, kernel_ver, banner, os_type, arch):
         pass
 
 
+def _persist_kernel_if_missing(image: str, os_type: str, vol3: Optional[Path],
+                               output_dir) -> None:
+    """Fill json/linux_kernel.json on the 'symbols already work' fast path.
+
+    Every OTHER exit of resolve_symbols writes this file, but the already-working
+    early return skips the whole banner pipeline — so downstream consumers
+    (system_info, HTML report, crash_report's target.kernel/distro) lose the
+    kernel/distro. This does a best-effort recovery: only when the file is absent,
+    reuse the same fast strings-based banner scan + ranking the resolver trusts
+    elsewhere and persist the top candidate. Guarded + wrapped so it can never
+    slow (skips when already present) or break a working run."""
+    if not output_dir:
+        return
+    try:
+        if (Path(output_dir) / "json" / "linux_kernel.json").exists():
+            return
+        cands = _scan_all_banners(image, os_type)
+        if cands:
+            kv, banner = _rank_banner_candidates(cands)[0]
+        else:
+            kv, banner = _detect_kernel(image, os_type, vol3=vol3)
+        if kv:
+            _write_kernel_json(output_dir, kv, banner, os_type,
+                               _detect_arch_from_banner(banner or ""))
+    except Exception:
+        pass
+
+
 def resolve_symbols(image: str, os_type: str = "linux",
                     output_dir: Optional[Path] = None) -> bool:
     """
@@ -909,6 +937,9 @@ def resolve_symbols(image: str, os_type: str = "linux",
     # 0. Already working? (a correct ISF may be installed from a prior run)
     if _symbols_already_work(vol3, image, os_type):
         msg_ok("Symbols already working for this image")
+        # This fast path skips the banner pipeline, so persist kernel/distro for
+        # downstream tools (system_info, crash_report) if not already on disk.
+        _persist_kernel_if_missing(image, os_type, vol3, output_dir)
         return True
 
     # 1. Collect every candidate kernel banner (fast strings scan over the whole

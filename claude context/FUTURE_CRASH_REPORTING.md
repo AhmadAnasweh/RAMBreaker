@@ -144,6 +144,59 @@ stability, the whitelist-keys guard, an explicit *no-leak* check (sentinel path 
 address must not survive into the JSON), and `write()` behaviour (nothing on a
 healthy run, `crash_report.json` on a broken one).
 
+## Known blind spots — silent new-kernel failures (analysis 2026-07-11)
+
+run_health + crash_report make *loud* failures loud, but a **new kernel** tends to
+fail *silently*, and the current code still lets several of those through. Ranked
+by risk:
+
+1. **Linux/macOS false-success on `rc==0` + empty output** — *the main gap.*
+   `volatility.py::_run_vol3` (≈L556–575): for Linux/macOS, success is `rc==0`
+   **regardless of whether the JSON is `[]`**. A new-kernel struct change has two
+   failure modes: (a) the exception propagates → `rc!=0` → correctly caught; but
+   (b) Vol3 logs a per-object error to **stderr**, still exits `0`, and writes an
+   empty/partial array → **counted as a successful, empty plugin.** Worse, the
+   `err_msg` (which `_meaningful_stderr` already distils to the one useful
+   `AttributeError: …!taint_flag.module` line) is only logged/returned when
+   `not ok` (L576–581) — so on false-success the single most diagnostic line is
+   **discarded**. That same struct drift is then invisible to `_classify_log_failures`
+   (it greps `X FAILED:` lines that never get written) — so it never reaches the
+   `struct-mismatch → "bump Vol3"` classifier either.
+
+2. **Resume cache poisons on `[]`** — `extractor.*::run` `_BAD_MARKERS` (≈L110–138)
+   decides a plugin can be skipped if its existing JSON contains none of the
+   failure markers. A false-success struct-mismatch wrote `"[]"`, which contains
+   no marker **and** the traceback went to stderr (never into the JSON) — so a
+   re-run skips it forever, caching the silent failure as good.
+
+3. **Corroboration only covers 3 tabs** — `run_health.KEY_PLUGINS` (L46–56) only
+   flags emptiness for process / network / files. A new kernel that silently
+   empties `lsmod`, `check_modules`, `check_syscall`, `malfind`, `mountinfo`,
+   `elfs`, … trips nothing. No "expected non-empty" heuristic exists for them.
+
+4. **Pinned Vol3 can't self-diagnose the silent case** — the `TOOLCHAIN.lock`
+   pin (Vol3 `634774fd`) is correct for reproducibility, and `classify_failure`
+   *does* say "bump Vol3" for struct-mismatch — but only when the failure is seen
+   (rc!=0, logged `FAILED`). The highest-risk new-kernel drifts are the silent
+   rc=0 ones from (1), which never reach that message.
+
+**Suggested fixes (not yet built), cheapest first:**
+- In `_run_vol3`, when `rc==0` but the JSON is empty **and** stderr carries an
+  `AttributeError`/`not present in template`/`Unhandled exception`, downgrade to
+  `success=False` (or a new `success="suspect"`) and **keep the stderr** — this
+  alone closes (1), (2-via-marker), and feeds (4)'s classifier. Guard it so a
+  legitimately-empty plugin on a clean host (check_modules/tty_check) isn't
+  demoted: only demote when stderr has a real exception signature.
+- Add the empty-but-errored plugins to `_BAD_MARKERS` handling by writing the
+  stderr signature into the JSON stub (e.g. `[]` → `{"_error": "<class>"}`) so
+  resume re-runs them.
+- Widen `run_health` corroboration with a small per-OS "these usually aren't
+  empty on a real host" list (advisory WARN, never a verdict).
+
+The kernel banner needed to *act* on any of these was itself being lost on the
+cached-symbol path — fixed this session (`_persist_kernel_if_missing`), so a
+future crash_report from a new-kernel box now carries `target.kernel/distro`.
+
 ### What's left for Step 2 (transport)
 `install_id` generation + first-run consent prompt showing a sample payload;
 `--no-telemetry` / `CRESCENT_TELEMETRY=0`; best-effort fire-and-forget send with
