@@ -126,14 +126,52 @@ Analysis of new-kernel handling (documented in `FUTURE_CRASH_REPORTING.md` →
   re-executes it instead of trusting stale/partial JSON. Inert to every `*.json`
   glob (verified).
 - **④** is fixed *by ①* (the demoted failure now reaches the `struct-mismatch →
-  "bump Vol3"` classifier); **③** (advisory "usually-not-empty" corroboration) is
-  deferred — high false-positive risk, needs calibration.
+  "bump Vol3"` classifier); **③ was later BUILT conservatively** (see below).
 
-Tests: `tests/run_tests.py::test_vol3_demotion` (+19) → **69/69** green.
+## Follow-up 2: ③ advisory + Step 2 transport + weak-spot analysis (same session)
 
-## Next (Step 2, not built)
+- **③ BUILT** — `run_health.advisory_nonempty()` + `ADVISORY_NONEMPTY`: a small,
+  high-signal set (Windows `svcscan`/`modules`, Linux/macOS `lsof`) flagged WARN
+  ("verify", never a verdict) when it RAN but returned 0 rows. Risky wide list
+  (`malfind`/`check_syscall`/`tty_check`) deliberately excluded.
+- **Step 2 transport BUILT** (`crash_report.py`, default OFF) — `telemetry_enabled`
+  (env>config, `--no-telemetry`/`CRESCENT_TELEMETRY`), `install_id`, `send()`
+  (urllib, 3 s, wrapped), `maybe_send()` (dedup by fingerprint), `sample_payload()`.
+  Nothing sent without explicit opt-in + endpoint.
+- **`TOOL_WEAK_SPOTS.md`** — whole-codebase weak-spot analysis (Linux/macOS
+  process-corroboration gap, dbgsym HTTP + no-checksum downloads, HTML-report XSS
+  invariant untested, static RAM guard, extractor triplication, no canary test).
 
-Opt-in transport: `install_id` + first-run consent (show sample payload),
-`--no-telemetry`/`CRESCENT_TELEMETRY=0`, fire-and-forget send deduped by
-`fingerprint`, and the privacy-max "send this file? [y/N]" prompt. Builds
-directly on `crash_report.build()`. See `FUTURE_CRASH_REPORTING.md`.
+Tests: **93/93** green (added `test_advisory_nonempty` +7, `test_telemetry` +17
+incl. a real localhost POST round-trip + dedup; `test_vol3_demotion` +19).
+
+## Real-image end-to-end verification (2026-07-11)
+
+Full `extract` runs on `Windows2.raw` (Vol2) and `kalilinux.lime` (Vol3,
+network) under the new code. Note: both first attempts were killed by a 900 s
+wrapper cap because RAMDUMPS live on a slow `vmhgfs-fuse` share and ran
+concurrently (netscan alone 4838 s) — an I/O artifact, not a code fault. A
+solo resume of the Kali run then reached `write_summary()` cleanly:
+
+- **① no false demotion** — 0 `.json.error` sidecars across every completed real
+  Vol3 plugin (pslist/pstree/sockstat/lsof/check_modules).
+- **② sidecars** — 3 real sidecars on Windows (`connections`, `connscan`,
+  `malfind`); resume skipped the 3 good-content plugins and re-ran the empty/
+  missing ones (`sockstat` `[]`<10 B, `ip.Addr` absent).
+- **cached-symbol fix + crash_report** — the Kali run wrote
+  `json/linux_kernel.json` (`6.12.13-amd64`) and a `crash_report.json` with
+  `status: degraded`, **`target.kernel: 6.12.13-amd64, distro: Kali`** (the field
+  that was empty before this session), network WARN, no builder-identity leak.
+- **③ no false positive** — `lsof` had 24 375 rows → advisory stayed quiet.
+- **H1 confirmed live** — the banner shows `psscan=-` on Linux (pool-scan
+  corroboration cannot fire); see `TOOL_WEAK_SPOTS.md`.
+
+macOS full-run coverage deferred: mac ISF symbols are fragile and the shared-folder
+I/O made runs impractical this session; the demotion's mac branch is identical to
+the validated Linux branch and is unit-tested.
+
+## Next (product/UX, not plumbing)
+
+Interactive first-run consent prompt in the menu; a real hosted receiver endpoint;
+the highest-value weak-spots from `TOOL_WEAK_SPOTS.md` (Linux corroboration H1,
+download integrity H2/H3, HTML-report XSS test H4).
