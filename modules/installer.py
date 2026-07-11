@@ -12,14 +12,70 @@ Usage:
     inst.check_and_install()
 """
 
+import hashlib
 import logging
 import os
 import platform
 import shutil
 import subprocess
 import sys
+import zipfile
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
+
+
+# Optional integrity pins for the Volatility symbol zips (H3 follow-up). These
+# packs are refreshed upstream whenever new OS builds ship, so they are NOT pinned
+# by default — a stale hash would reject a legitimate update. To LOCK a vetted
+# version: run a symbol download, copy the `sha256=…` the installer logs into the
+# matching entry below, and it is enforced on every later download (mismatch =>
+# refused). Left empty = archive-format + structural-integrity check only, which
+# still rejects a MITM/broken-mirror payload (an HTML error page, a truncated or
+# corrupt zip) before it is ever extracted.
+PINNED_SYMBOL_SHA256: Dict[str, str] = {
+    # "windows": "<sha256 hex>",
+    # "linux":   "<sha256 hex>",
+    # "mac":     "<sha256 hex>",
+}
+
+
+def verify_symbol_zip(zip_path: Path,
+                      expected_sha256: Optional[str] = None
+                      ) -> Tuple[bool, str, str]:
+    """Integrity-check a downloaded Volatility symbol zip BEFORE extraction.
+
+    Returns ``(ok, sha256, reason)``. Checks, in order: (1) the file's magic is a
+    real zip — rejects an HTML error page / redirect body / garbage from a broken
+    or hostile mirror; (2) if a pin is supplied, the sha256 must match it; (3) the
+    central directory + per-entry CRCs via ``zipfile.testzip()`` — rejects a
+    truncated or corrupt download. Always returns the computed sha256 so an
+    operator can pin a vetted version. Pure w.r.t. its file input; never raises.
+    """
+    try:
+        with open(zip_path, "rb") as f:
+            head = f.read(4)
+    except Exception as e:
+        return (False, "", f"unreadable: {e}")
+    if head != b"PK\x03\x04":
+        return (False, "", f"not a zip (magic {head.hex()}) — tampered/broken mirror")
+    h = hashlib.sha256()
+    try:
+        with open(zip_path, "rb") as f:
+            for chunk in iter(lambda: f.read(1024 * 1024), b""):
+                h.update(chunk)
+    except Exception as e:
+        return (False, "", f"unreadable: {e}")
+    digest = h.hexdigest()
+    if expected_sha256 and digest.lower() != expected_sha256.lower():
+        return (False, digest, "sha256 does not match the configured pin")
+    try:
+        with zipfile.ZipFile(zip_path) as z:
+            bad = z.testzip()
+        if bad is not None:
+            return (False, digest, f"corrupt zip (bad CRC in {bad})")
+    except zipfile.BadZipFile as e:
+        return (False, digest, f"bad zip: {e}")
+    return (True, digest, "ok")
 
 
 class VolatilityInstaller:
@@ -584,8 +640,28 @@ class VolatilityInstaller:
                     import urllib.request
                     urllib.request.urlretrieve(url, str(zip_path))
 
-                # Unzip
+                # Verify integrity BEFORE extracting: a MITM/broken mirror could
+                # have served an HTML error page or a truncated/corrupt zip, and a
+                # pinned sha256 (if configured) must match.
                 if zip_path.exists():
+                    ok, digest, reason = verify_symbol_zip(
+                        zip_path, PINNED_SYMBOL_SHA256.get(os_type))
+                    if not ok:
+                        self.log.error(
+                            "%s symbol zip failed integrity check: %s "
+                            "(sha256=%s) — refusing to extract",
+                            os_type, reason, (digest[:16] + "…") if digest else "?")
+                        zip_path.unlink(missing_ok=True)
+                        results[os_type] = False
+                        continue
+                    if PINNED_SYMBOL_SHA256.get(os_type):
+                        self.log.info("%s symbol zip verified (sha256 matches pin)",
+                                      os_type)
+                    else:
+                        self.log.info(
+                            "%s symbol zip verified: sha256=%s… — add to "
+                            "PINNED_SYMBOL_SHA256 to lock this version",
+                            os_type, digest[:16])
                     self.log.info("Extracting %s...", zip_name)
                     subprocess.run(
                         ["unzip", "-o", "-q", str(zip_path), "-d", str(sym_dir)],

@@ -51,9 +51,13 @@ that yields wrong symbol resolution on evidence.
 **Fix (`21f5068`):** `verify_downloaded_package()` checks archive magic
 (ar/rpm/xz/gz/bz2/zst/zip) and refuses an HTML error page/garbage before
 extraction, verifies an expected sha256 when supplied, and logs the computed
-sha256 (fails closed on mismatch). *Residual:* the Volatility symbol-zip download
-in `installer.py` is HTTPS but still unpinned — a checksum pin there is the
-follow-up.
+sha256 (fails closed on mismatch). The Volatility symbol-zip download in
+`installer.py` is now also verified (`verify_symbol_zip`): zip magic +
+`zipfile.testzip()` structural check reject an HTML error page / truncated /
+corrupt payload before extraction, and an **optional** `PINNED_SYMBOL_SHA256`
+pin is enforced when set (empty by default — these packs update upstream, so a
+default pin would reject legitimate refreshes; the installer logs the observed
+sha256 so an operator can lock a vetted version).
 Beyond H2: `installer.py` pulls Volatility symbol zips
 (`downloads.volatilityfoundation.org/.../{windows,linux,mac}.zip`, HTTPS ✓) and
 the resolver downloads community ISFs, all **without a pinned checksum**. HTTPS

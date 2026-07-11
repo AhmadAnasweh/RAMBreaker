@@ -496,11 +496,42 @@ def test_download_integrity():
         shutil.rmtree(d, ignore_errors=True)
 
 
+def test_symbol_zip_integrity():
+    from modules.installer import verify_symbol_zip, PINNED_SYMBOL_SHA256
+    import tempfile, shutil, zipfile
+    print("[symbol zip integrity / pinning]")
+    d = Path(tempfile.mkdtemp())
+    try:
+        good = d / "linux.zip"
+        with zipfile.ZipFile(good, "w") as z:
+            z.writestr("System.map-6.1.0", "ffffffffdeadbeef kernel_symbol\n" * 20)
+        ok, digest, reason = verify_symbol_zip(good)
+        check("valid zip -> ok", ok is True, detail=reason)
+        check("valid zip -> 64-hex sha256", len(digest) == 64)
+        check("matching pin accepted", verify_symbol_zip(good, digest)[0] is True)
+        check("wrong pin rejected", verify_symbol_zip(good, "00" * 32)[0] is False)
+
+        bad = d / "err.zip"; bad.write_bytes(b"<html><body>404 Not Found</body></html>")
+        ok2, _, reason2 = verify_symbol_zip(bad)
+        check("HTML error page rejected", ok2 is False)
+        check("rejection reason names zip/mirror",
+              "zip" in reason2.lower() or "mirror" in reason2.lower())
+
+        corrupt = d / "trunc.zip"; corrupt.write_bytes(good.read_bytes()[:20])
+        check("truncated/corrupt zip rejected", verify_symbol_zip(corrupt)[0] is False)
+        check("missing file rejected", verify_symbol_zip(d / "nope.zip")[0] is False)
+        check("no default pins (upstream updates not broken)",
+              PINNED_SYMBOL_SHA256 == {})
+    finally:
+        shutil.rmtree(d, ignore_errors=True)
+
+
 def main():
     for t in (test_corroborate_processes, test_classify_failure,
               test_assess_fixtures, test_advisory_nonempty, test_ioc_extractor,
               test_crash_report, test_vol3_demotion, test_telemetry,
-              test_html_report_xss, test_download_integrity):
+              test_html_report_xss, test_download_integrity,
+              test_symbol_zip_integrity):
         try:
             t()
         except Exception as exc:  # a crashing test is a failing test
