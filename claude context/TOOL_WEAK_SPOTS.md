@@ -13,7 +13,15 @@ Legend: **[Sev]** High / Med / Low · *(confirmed)* = read in code · *(inferred
 
 ## High
 
-### H1 — Linux/macOS process corroboration is effectively blind *(confirmed)*
+> **Status 2026-07-11: H1, H2, H3, H4 all FIXED** (commits `335a30c`, `21f5068`,
+> `8b74871`). Details inline below; 121/121 tests green.
+
+### H1 — Linux/macOS process corroboration is effectively blind *(confirmed → ✅ FIXED)*
+**Fix (`335a30c`):** run `linux.psscan.PsScan` in the fast/full/malware Linux
+modes (validated live: 904 procs on kalilinux.lime) and make it independent of
+`pslist` in DEPENDENCIES; add a `psaux` fallback corroborator for macOS (no
+psscan); gate the "psscan ≫ pslist" WARN to Windows so Linux slab retention isn't
+noise. Bug-#10 CRITICAL now fires on all OSes.
 `run_health.corroborate_processes` is the Bug-#10 guard: it catches "pool scan
 (`psscan`) finds processes but the linked list (`pslist`) is empty" — the classic
 hidden/failed process-list signature. **But no Linux/macOS plugin list runs
@@ -27,7 +35,9 @@ cross-checked.
 scan variants / `linux.psscan` where available; or corroborate `pslist` against
 `psaux`/`pstree` counts with a tolerance) and feed it into `corroborate_processes`.
 
-### H2 — Debug-package download over plain HTTP, no integrity check *(confirmed)*
+### H2 — Debug-package download over plain HTTP, no integrity check *(confirmed → ✅ FIXED)*
+**Fix (`21f5068`):** `DDEBS_POOL`→https; `prefer_https()` upgrades any TLS-capable
+host in both download paths; http-only hosts warned. See H3 for the payload check.
 `dbgsym_builder.py:72` `DDEBS_POOL = "http://ddebs.ubuntu.com/pool/main/l"` fetches
 `.ddeb` kernel debug packages over **HTTP**, and nothing verifies a checksum or
 signature before `dwarf2json` parses them into an ISF. A network MITM (very real
@@ -37,7 +47,13 @@ that yields wrong symbol resolution on evidence.
 *Fix:* use the HTTPS ddebs endpoint; verify the `.deb` against the archive
 `Packages` SHA256 (already fetched for the index) before building.
 
-### H3 — No integrity verification on any downloaded symbols/ISF *(confirmed)*
+### H3 — No integrity verification on any downloaded symbols/ISF *(confirmed → ✅ FIXED for the dbgsym path)*
+**Fix (`21f5068`):** `verify_downloaded_package()` checks archive magic
+(ar/rpm/xz/gz/bz2/zst/zip) and refuses an HTML error page/garbage before
+extraction, verifies an expected sha256 when supplied, and logs the computed
+sha256 (fails closed on mismatch). *Residual:* the Volatility symbol-zip download
+in `installer.py` is HTTPS but still unpinned — a checksum pin there is the
+follow-up.
 Beyond H2: `installer.py` pulls Volatility symbol zips
 (`downloads.volatilityfoundation.org/.../{windows,linux,mac}.zip`, HTTPS ✓) and
 the resolver downloads community ISFs, all **without a pinned checksum**. HTTPS
@@ -46,7 +62,13 @@ undetected. Contrast the good instinct in `TOOLCHAIN.lock` (dwarf2json binary
 committed *because* an upstream change once shipped a broken build).
 *Fix:* pin known-good SHA256s for the symbol packs; warn/fail on mismatch.
 
-### H4 — HTML report XSS defense rests on an untested invariant *(confirmed)*
+### H4 — HTML report XSS defense rests on an untested invariant *(confirmed → ✅ FIXED)*
+**Fix (`8b74871`):** shared `utils.json_converter.safe_js_json()` escapes `< > &`
++ U+2028/9 to `\uXXXX` (context-breakout-proof regardless of per-field escaping);
+all three report generators embed via it. Audited the client side — every
+memory-derived render path already uses `esc()`. Regression test feeds a
+`</script><img onerror>` payload through `_build_html` and asserts no live
+break-out.
 The self-contained `report.html` is built from **attacker-controlled memory
 strings** (malware process names, command lines, URLs) and opened in the analyst's
 browser. Core defenses ARE present: the data blob is `json.dumps(...).replace("</",
