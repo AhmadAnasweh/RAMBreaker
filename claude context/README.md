@@ -90,3 +90,4 @@ Speed: `normal fast fastest`. Full flag/command reference in `ARCHITECTURE_V6.md
 | `SESSION_2026-07-08_WINDOWS_KERNEL_SYMBOL_RACE.md` | Windows Vol3 cold-start kernel-symbol race (Bug #10): serial kernel-symbol warm-up, progress-aware detection probes, self-healing serial retry |
 | `FUTURE_CRASH_REPORTING.md` | Crash/failure reporting design. **Step 1 (local `crash_report.json`) BUILT**; Step 2 (opt-in transport) planned. Privacy rules, scrub traps, log-signature cheat-sheet |
 | `SESSION_2026-07-11_CRASH_REPORT_LOCAL.md` | Local scrubbed failure-fingerprint artifact (`modules/crash_report.py`): schema, privacy guarantees, extractor integration, tests |
+| `TOOL_WEAK_SPOTS.md` | Whole-codebase weak-spot analysis ranked by severity: Linux corroboration gap, download integrity, HTML-report XSS invariant, RAM guard, triplication, canary-test gap |

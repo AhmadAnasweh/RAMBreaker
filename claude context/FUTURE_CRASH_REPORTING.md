@@ -1,11 +1,12 @@
 # Crash / Failure Reporting
 
-Status: **Step 1 (local `crash_report.json`) BUILT 2026-07-11**; Step 2
-(opt-in transport) still planned. Author: Ahmad Anasweh.
+Status: **Step 1 (local `crash_report.json`) + Step 2 (opt-in transport) BUILT
+2026-07-11.** Author: Ahmad Anasweh.
 
-> **Step 1 is implemented** — see [`## Implemented — Step 1`](#implemented--step-1-local-crash_reportjson)
-> at the bottom. The design below is the full end-state; only the transport half
-> (send/consent) remains unbuilt.
+> Both steps are implemented — see `## Implemented — Step 1` and `## Implemented —
+> Step 2` below. Transport is **default OFF** and sends nothing without explicit
+> opt-in and an endpoint. What remains is product/UX (an interactive consent
+> prompt, a hosted receiver) — noted at the end of the Step 2 section.
 
 ## Goal
 When a run hits plugin failures, produce a **scrubbed, structured failure
@@ -202,20 +203,47 @@ Ranked by risk:
   through `run_health._classify_log_failures → classify_failure → struct-mismatch`,
   which already prints "bump Vol3". We deliberately do **not** auto-bump the pin
   (reproducibility is the point of `TOOLCHAIN.lock`).
-- **③ NOT built (deliberately)** — widening corroboration to "these plugins
-  usually aren't empty" is an advisory heuristic with high false-positive risk:
-  `malfind`/`check_syscall`/`tty_check`/`check_modules` are *legitimately* empty on
-  a clean host, and a false "lsmod is empty!" WARN violates the tool's core
-  "evidence, not verdicts / no false alarms" principle. It needs real-world
-  calibration data before it can ship, and is lower-leverage than ①. Deferred.
+- **③ BUILT — conservatively** — `run_health.advisory_nonempty()` +
+  `ADVISORY_NONEMPTY` flag a *small, high-signal* set that is almost never empty
+  on a real host (Windows `svcscan`/`modules`, Linux/macOS `lsof`) when they RAN
+  but returned 0 rows. Deliberately NOT the risky wide list (`malfind`/
+  `check_syscall`/`tty_check` are legitimately empty on clean hosts, so they are
+  excluded). Every finding is a **WARN worded as an observation** ("verify",
+  "not a verdict") — status can reach `degraded`, never `broken` — matching the
+  existing empty-tab checks and the tool's "evidence, not verdicts" rule. A
+  plugin that did not run (no JSON) is never flagged. Tested
+  (`test_advisory_nonempty`).
 
 The kernel banner needed to *act* on any of these was itself being lost on the
 cached-symbol path — also fixed (`_persist_kernel_if_missing`), so a crash_report
 from a new-kernel box now carries `target.kernel/distro`.
 
-### What's left for Step 2 (transport)
-`install_id` generation + first-run consent prompt showing a sample payload;
-`--no-telemetry` / `CRESCENT_TELEMETRY=0`; best-effort fire-and-forget send with
-dedup by `fingerprint`; the privacy-max "send this file? [y/N]" prompt. The
-scrubbing those depend on is now proven, so Step 2 can build on
-`crash_report.build()` directly.
+## Implemented — Step 2 (opt-in transport)
+
+Built in `crash_report.py`; **default OFF**, nothing sent without explicit opt-in
+AND an endpoint. The report is already scrubbed/whitelisted, so transport adds
+only an opt-in `install_id`.
+
+- **Consent / gating** (`telemetry_enabled`, pure): OFF by default. Env wins over
+  config — `CRESCENT_TELEMETRY=0` (or `--no-telemetry`, which `main()` maps to that
+  env) forces OFF; `=1` forces ON; otherwise the saved config `enabled` flag (set
+  via `enable(endpoint)` / cleared via `disable()`). Endpoint from
+  `CRESCENT_TELEMETRY_ENDPOINT` or config; **no endpoint ⇒ no-op**.
+- **`install_id`** — random UUID generated + persisted only on an opted-in send
+  (`get_install_id(create=True)`); a disabled install has none. Config lives at
+  `~/.config/rambreaker/telemetry.json` (override: `CRESCENT_TELEMETRY_CONFIG`).
+- **`send()`** — stdlib `urllib` POST, 3 s timeout, fully wrapped (never raises /
+  never blocks a run beyond the timeout). **`maybe_send()`** (called from
+  `write()`) sends the scrubbed report exactly once per unique `fingerprint`
+  (dedup via `sent_fingerprints`), only when enabled + endpoint.
+- **`sample_payload()`** — a placeholder, image-free payload to SHOW before opt-in
+  ("show a sample before asking").
+- **Tests** — `test_telemetry` (17 assertions) covers gating precedence, dedup,
+  payload scrubbing, and a **real localhost POST** (spins up an `http.server`,
+  asserts the endpoint received the scrubbed body and that a duplicate fingerprint
+  is not re-sent). No external service is contacted.
+
+**Still open (product/UX, not plumbing):** an interactive first-run consent prompt
+in the menu (the env/`enable()` path is the current opt-in); a real hosted
+receiver endpoint (deliberately not invented here); optionally moving `send` to a
+fire-and-forget daemon thread if the 3 s bound is ever felt.

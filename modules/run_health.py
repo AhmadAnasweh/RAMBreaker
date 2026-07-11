@@ -55,6 +55,19 @@ KEY_PLUGINS: Dict[str, Dict[str, List[str]]] = {
                 "files":   ["list_files"]},
 }
 
+# High-signal plugins that are almost NEVER legitimately empty on a real running
+# host. If one ran and returned zero rows, that is far more likely a (possibly
+# silent) plugin failure than a genuine empty result — so it earns an ADVISORY
+# warning ("verify"), never a verdict. Kept deliberately small and conservative:
+# a monolithic/embedded kernel or an unusual host CAN legitimately empty some, so
+# the phrasing is an observation, and status only ever reaches "degraded" (WARN),
+# never "broken". Maps short plugin name -> human label.
+ADVISORY_NONEMPTY: Dict[str, Dict[str, str]] = {
+    "windows": {"svcscan": "services", "modules": "kernel modules"},
+    "linux":   {"lsof": "open files"},
+    "mac":     {"lsof": "open files"},
+}
+
 
 # --------------------------------------------------------------------------- #
 # Pure, unit-testable classifiers
@@ -182,6 +195,28 @@ def corroborate_processes(counts: Dict[str, Optional[int]]) -> List[Dict[str, st
     return findings
 
 
+def advisory_nonempty(os_type: str,
+                      counts: Dict[str, Optional[int]]) -> List[Dict[str, str]]:
+    """Advisory check: high-signal plugins that ran but returned nothing.
+
+    ``counts`` maps the short plugin name to a row count (None = plugin did not
+    run — no file — so it is NOT flagged; only a plugin that ran and returned 0
+    is suspicious). Pure function. Every finding is a WARN worded as an
+    observation ("verify"), never a verdict — see ``ADVISORY_NONEMPTY``.
+    """
+    out: List[Dict[str, str]] = []
+    for plug, label in ADVISORY_NONEMPTY.get(os_type, {}).items():
+        if counts.get(plug) == 0:
+            out.append({
+                "severity": WARN, "check": plug,
+                "message": f"{plug} ({label}) ran but returned 0 rows — a real "
+                           f"running host almost always has some, so this is "
+                           f"likely a silent plugin failure. Observation, not a "
+                           f"verdict; verify before relying on an empty {label} "
+                           f"list."})
+    return out
+
+
 # --------------------------------------------------------------------------- #
 # Disk-driven assessment
 # --------------------------------------------------------------------------- #
@@ -248,6 +283,11 @@ def assess(output_dir, os_type: str, mode: Optional[str] = None,
                 "message": f"The {tab} tab is empty (all of "
                            f"{', '.join(plugs)} returned 0). Could be a quiet "
                            f"host or a plugin failure — verify before relying on it."})
+
+    # Advisory: high-signal plugins that ran but came back empty (likely a silent
+    # failure on a real host). WARN-only, worded as an observation.
+    adv_counts = {p: _count(json_dir, p) for p in ADVISORY_NONEMPTY.get(os_type, {})}
+    findings.extend(advisory_nonempty(os_type, adv_counts))
 
     taxonomy = _classify_log_failures(output_dir / "crescent_toolkit.log")
 

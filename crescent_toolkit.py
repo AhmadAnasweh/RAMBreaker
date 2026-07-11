@@ -109,6 +109,10 @@ def _build_parser():
                    help="hunt: disable case-insensitive matching")
     p.add_argument("--hunt-no-wide", action="store_true",
                    help="hunt: skip wide (UTF-16LE) string matching")
+    p.add_argument("--no-telemetry", dest="no_telemetry", action="store_true",
+                   help="disable opt-in crash-report transport for this run "
+                        "(equivalent to CRESCENT_TELEMETRY=0). Telemetry is OFF "
+                        "by default; this is a belt-and-suspenders override.")
     return p
 
 
@@ -3123,6 +3127,12 @@ def main():
     # Interactive-only settings (no CLI flag): OS hint + chosen Linux symbol table.
     args.os_hint = getattr(args, "os_hint", "auto")
     args.symbol_isf = getattr(args, "symbol_isf", None)
+    # --no-telemetry is a hard OFF override for the opt-in crash-report transport.
+    # Map it to the env var the crash_report module reads (keeps the extractor,
+    # which has no args, telemetry-aware without threading args through it).
+    if getattr(args, "no_telemetry", False):
+        import os as _os
+        _os.environ["CRESCENT_TELEMETRY"] = "0"
     try:
         dispatch = {
             "menu": lambda: _interactive_menu(args),

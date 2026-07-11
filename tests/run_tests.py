@@ -12,6 +12,7 @@ Volatility; the canary matrix (a later step) covers real images.
 import sys
 import json
 import logging
+import os
 import types
 from pathlib import Path
 
@@ -103,6 +104,29 @@ def test_assess_fixtures():
     check("Bug-#10 fixture -> critical process finding",
           any(f["check"] == "processes" and f["severity"] == rh.CRITICAL
               for f in bug["findings"]))
+
+
+def test_advisory_nonempty():
+    from modules import run_health as rh
+    print("[advisory_nonempty]")
+    W, C = rh.WARN, rh.CRITICAL
+
+    f = rh.advisory_nonempty("windows", {"svcscan": 0, "modules": 120})
+    check("windows empty svcscan -> WARN",
+          any(x["check"] == "svcscan" and x["severity"] == W for x in f), detail=str(f))
+    check("windows non-empty modules -> not flagged",
+          not any(x["check"] == "modules" for x in f))
+
+    check("plugin that didn't run (None) -> not flagged",
+          rh.advisory_nonempty("windows", {"svcscan": None, "modules": None}) == [])
+    check("linux non-empty lsof -> no WARN",
+          rh.advisory_nonempty("linux", {"lsof": 4200}) == [])
+
+    f4 = rh.advisory_nonempty("linux", {"lsof": 0})
+    check("linux empty lsof -> WARN", any(x["check"] == "lsof" for x in f4))
+    check("advisory findings are never critical",
+          all(x["severity"] != C for x in f + f4))
+    check("unknown os -> no advisory", rh.advisory_nonempty("plan9", {"x": 0}) == [])
 
 
 def test_ioc_extractor():
@@ -298,10 +322,90 @@ def test_vol3_demotion():
         shutil.rmtree(d, ignore_errors=True)
 
 
+def test_telemetry():
+    from modules import crash_report as cr
+    import tempfile, threading, shutil
+    from http.server import BaseHTTPRequestHandler, HTTPServer
+    print("[telemetry / Step 2 transport]")
+
+    # Isolate config to a temp file so the real ~/.config is never touched.
+    tmpdir = Path(tempfile.mkdtemp())
+    os.environ["CRESCENT_TELEMETRY_CONFIG"] = str(tmpdir / "telemetry.json")
+    os.environ.pop("CRESCENT_TELEMETRY", None)
+    os.environ.pop("CRESCENT_TELEMETRY_ENDPOINT", None)
+    try:
+        # gating: default OFF, env precedence over config
+        check("default OFF (no config/env)", cr.telemetry_enabled({}) is False)
+        check("env=1 forces ON",
+              cr.telemetry_enabled({}, {"CRESCENT_TELEMETRY": "1"}) is True)
+        check("env=0 forces OFF over enabled config",
+              cr.telemetry_enabled({"enabled": True}, {"CRESCENT_TELEMETRY": "0"}) is False)
+        check("config enabled -> ON", cr.telemetry_enabled({"enabled": True}, {}) is True)
+
+        # _should_send dedup/gating
+        check("no endpoint -> no send", not cr._should_send("fp1", [], True, None))
+        check("disabled -> no send", not cr._should_send("fp1", [], False, "http://x"))
+        check("new fingerprint -> send", cr._should_send("fp1", ["fp0"], True, "http://x"))
+        check("already-sent fingerprint -> skip",
+              not cr._should_send("fp1", ["fp1"], True, "http://x"))
+
+        # payload keeps the scrubbed report, only adds install_id
+        rep = {"schema": cr.SCHEMA, "fingerprint": "abc", "target": {"kernel": "6.1"}}
+        pl = cr.build_payload(rep, "iid123")
+        check("payload adds install_id", pl.get("install_id") == "iid123")
+        check("payload preserves report body", pl["fingerprint"] == "abc")
+        check("send('') is a no-op (no endpoint)", cr.send({"x": 1}, "") is False)
+
+        # REAL localhost transport — validates the POST path with no external svc
+        received = {}
+        class H(BaseHTTPRequestHandler):
+            def do_POST(self):
+                n = int(self.headers.get("Content-Length", 0))
+                received["body"] = json.loads(self.rfile.read(n))
+                self.send_response(200); self.end_headers()
+            def log_message(self, *a):
+                pass
+        srv = HTTPServer(("127.0.0.1", 0), H)
+        threading.Thread(target=srv.handle_request, daemon=True).start()
+        ok = cr.send({"schema": cr.SCHEMA, "fingerprint": "abc"},
+                     f"http://127.0.0.1:{srv.server_address[1]}/ingest")
+        check("send() POSTs to a live endpoint (2xx)", ok is True)
+        check("endpoint received the scrubbed payload",
+              received.get("body", {}).get("fingerprint") == "abc")
+        srv.server_close()
+
+        # maybe_send end-to-end via saved config, with fingerprint dedup
+        hits = {"n": 0}
+        class H2(BaseHTTPRequestHandler):
+            def do_POST(self):
+                n = int(self.headers.get("Content-Length", 0)); self.rfile.read(n)
+                hits["n"] += 1
+                self.send_response(200); self.end_headers()
+            def log_message(self, *a):
+                pass
+        srv2 = HTTPServer(("127.0.0.1", 0), H2)
+        threading.Thread(target=lambda: (srv2.handle_request(), srv2.handle_request()),
+                         daemon=True).start()
+        cr.enable(f"http://127.0.0.1:{srv2.server_address[1]}/ingest")
+        report = {"fingerprint": "zz-once", "schema": cr.SCHEMA}
+        first = cr.maybe_send(report)
+        second = cr.maybe_send(report)  # same fingerprint -> deduped, no 2nd POST
+        check("maybe_send delivers first time", first is True)
+        check("maybe_send dedups the second time", second is False)
+        check("exactly one POST reached the endpoint", hits["n"] == 1)
+        check("install_id generated on opt-in send", cr.get_install_id() is not None)
+        srv2.server_close()
+    finally:
+        for k in ("CRESCENT_TELEMETRY_CONFIG", "CRESCENT_TELEMETRY",
+                  "CRESCENT_TELEMETRY_ENDPOINT"):
+            os.environ.pop(k, None)
+        shutil.rmtree(tmpdir, ignore_errors=True)
+
+
 def main():
     for t in (test_corroborate_processes, test_classify_failure,
-              test_assess_fixtures, test_ioc_extractor, test_crash_report,
-              test_vol3_demotion):
+              test_assess_fixtures, test_advisory_nonempty, test_ioc_extractor,
+              test_crash_report, test_vol3_demotion, test_telemetry):
         try:
             t()
         except Exception as exc:  # a crashing test is a failing test

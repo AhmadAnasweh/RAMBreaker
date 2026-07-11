@@ -29,8 +29,11 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import platform
 import re
+import urllib.request
+import uuid
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -307,6 +310,186 @@ def write(output_dir, image, vol, mode, results, health) -> Optional[Path]:
         )
         out = Path(output_dir) / "crash_report.json"
         out.write_text(json.dumps(report, indent=2), encoding="utf-8")
+        # Step 2 (opt-in transport): no-op unless telemetry was explicitly
+        # enabled AND an endpoint is set. Bounded + wrapped — never blocks/breaks.
+        maybe_send(report)
         return out
     except Exception:
         return None
+
+
+# --------------------------------------------------------------------------- #
+# Step 2 — opt-in transport (default OFF; the report is already scrubbed)
+# --------------------------------------------------------------------------- #
+# Consent model: OFF unless the analyst explicitly opts in. Opt-in is expressed
+# either by `CRESCENT_TELEMETRY=1` (+ `CRESCENT_TELEMETRY_ENDPOINT`) or by a saved
+# config written via enable(). `CRESCENT_TELEMETRY=0` / `--no-telemetry`
+# (main() maps the flag to the env var) forces OFF unconditionally. Nothing is
+# ever sent without an endpoint, and only the whitelisted+scrubbed crash report
+# (plus an opt-in install_id) leaves the process. Dedup by fingerprint so one
+# unique failure is reported at most once per install.
+_TRUE = {"1", "true", "yes", "on"}
+_FALSE = {"0", "false", "no", "off"}
+
+
+def _telemetry_config_path() -> Path:
+    override = os.environ.get("CRESCENT_TELEMETRY_CONFIG")
+    if override:
+        return Path(override)
+    return Path.home() / ".config" / "rambreaker" / "telemetry.json"
+
+
+def _load_telemetry_config() -> Dict[str, Any]:
+    try:
+        return json.loads(_telemetry_config_path().read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+
+
+def _save_telemetry_config(cfg: Dict[str, Any]) -> None:
+    try:
+        p = _telemetry_config_path()
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(json.dumps(cfg, indent=2), encoding="utf-8")
+    except Exception:
+        pass
+
+
+def telemetry_enabled(config: Optional[Dict[str, Any]] = None,
+                      env: Optional[Dict[str, str]] = None) -> bool:
+    """Opt-in, default OFF. Env wins over config: CRESCENT_TELEMETRY in
+    {0,false,no,off} forces OFF; in {1,true,yes,on} forces ON; otherwise the saved
+    config's ``enabled`` flag decides. Pure given (config, env)."""
+    env = os.environ if env is None else env
+    val = str(env.get("CRESCENT_TELEMETRY", "")).strip().lower()
+    if val in _FALSE:
+        return False
+    if val in _TRUE:
+        return True
+    config = _load_telemetry_config() if config is None else config
+    return bool(config.get("enabled", False))
+
+
+def telemetry_endpoint(config: Optional[Dict[str, Any]] = None,
+                       env: Optional[Dict[str, str]] = None) -> Optional[str]:
+    env = os.environ if env is None else env
+    ep = env.get("CRESCENT_TELEMETRY_ENDPOINT")
+    if ep:
+        return ep
+    config = _load_telemetry_config() if config is None else config
+    return config.get("endpoint")
+
+
+def get_install_id(create: bool = False) -> Optional[str]:
+    """Stable per-install random id. Only generated/persisted when ``create`` is
+    True (i.e. right before an opted-in send) — a disabled install has no id."""
+    cfg = _load_telemetry_config()
+    iid = cfg.get("install_id")
+    if iid or not create:
+        return iid
+    iid = uuid.uuid4().hex
+    cfg["install_id"] = iid
+    _save_telemetry_config(cfg)
+    return iid
+
+
+def build_payload(report: Dict[str, Any],
+                  install_id: Optional[str]) -> Dict[str, Any]:
+    """The already-scrubbed, whitelisted crash report + an opt-in install_id. No
+    new unscrubbed fields are ever added — the report itself is the whitelist."""
+    payload = dict(report)
+    payload["install_id"] = install_id
+    return payload
+
+
+def _should_send(fingerprint: Optional[str], sent: Optional[List[str]],
+                 enabled: bool, endpoint: Optional[str]) -> bool:
+    """Gate: only when enabled, an endpoint exists, and this fingerprint is new.
+    Pure."""
+    if not (enabled and endpoint and fingerprint):
+        return False
+    return fingerprint not in set(sent or [])
+
+
+def enable(endpoint: str) -> None:
+    """Record explicit opt-in + endpoint (the interactive/CLI consent action)."""
+    cfg = _load_telemetry_config()
+    cfg["enabled"] = True
+    cfg["endpoint"] = endpoint
+    cfg.setdefault("install_id", uuid.uuid4().hex)
+    _save_telemetry_config(cfg)
+
+
+def disable() -> None:
+    """Revoke opt-in. Leaves install_id so re-enabling is stable; clears nothing
+    sensitive (there is nothing sensitive stored)."""
+    cfg = _load_telemetry_config()
+    cfg["enabled"] = False
+    _save_telemetry_config(cfg)
+
+
+def send(payload: Dict[str, Any], endpoint: str, timeout: float = 3.0) -> bool:
+    """Best-effort POST of a scrubbed payload to an opted-in endpoint. Bounded
+    (short timeout) and fully wrapped — never raises, never blocks a run beyond
+    ``timeout``. No endpoint => no-op. Returns True on a 2xx response."""
+    if not endpoint:
+        return False
+    try:
+        data = json.dumps(payload).encode("utf-8")
+        req = urllib.request.Request(
+            endpoint, data=data,
+            headers={"Content-Type": "application/json",
+                     "User-Agent": f"RAMBreaker/{report_tool_version()}"},
+            method="POST")
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            return 200 <= int(getattr(resp, "status", 200)) < 300
+    except Exception:
+        return False
+
+
+def report_tool_version() -> str:
+    return "6.0"
+
+
+def maybe_send(report: Dict[str, Any]) -> bool:
+    """Orchestrator called after a crash report is written. Sends the scrubbed
+    report exactly once per unique fingerprint, only if telemetry is opted-in and
+    an endpoint is configured. No-op (and instant) otherwise. Never raises."""
+    try:
+        cfg = _load_telemetry_config()
+        if not telemetry_enabled(cfg):
+            return False
+        endpoint = telemetry_endpoint(cfg)
+        fp = report.get("fingerprint")
+        if not _should_send(fp, cfg.get("sent_fingerprints"), True, endpoint):
+            return False
+        payload = build_payload(report, get_install_id(create=True))
+        if send(payload, endpoint):
+            cfg = _load_telemetry_config()  # re-read (get_install_id may have written)
+            cfg.setdefault("sent_fingerprints", []).append(fp)
+            _save_telemetry_config(cfg)
+            return True
+        return False
+    except Exception:
+        return False
+
+
+def sample_payload() -> Dict[str, Any]:
+    """A representative, fully-scrubbed payload to SHOW an analyst before they
+    opt in (the design's 'show a sample before asking'). Uses placeholder data —
+    reads nothing from any real image."""
+    report = {
+        "schema": SCHEMA, "generated": "2026-01-01T00:00:00",
+        "tool_version": report_tool_version(),
+        "run": {"status": "degraded", "mode": "fast", "duration_s": 747.3,
+                "plugins_ok": 9, "plugins_failed": 1},
+        "host": {"os": "linux", "arch": "x86_64", "python": "3.13.2"},
+        "target": {"os_type": "linux", "engine": "vol3", "profile": None,
+                   "kernel": "6.12.13-amd64", "distro": "Kali"},
+        "toolchain": dict(TOOLCHAIN),
+        "process_corroboration": {"pslist": 232, "psscan": None, "pstree": 2},
+        "failed_plugins": [{"name": "linux.pagecache.Files", "category": "timeout",
+                            "reason": "plugin exceeded its time budget"}],
+        "fingerprint": "f7f8c5fa2d55c6c0",
+    }
+    return build_payload(report, install_id="<generated once on opt-in>")
