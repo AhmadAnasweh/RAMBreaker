@@ -455,11 +455,52 @@ def test_html_report_xss():
         check("_build_html end-to-end reachable", False, detail=repr(exc))
 
 
+def test_download_integrity():
+    from modules import dbgsym_builder as db
+    import tempfile, shutil, hashlib
+    print("[download integrity H2/H3]")
+
+    # prefer_https: upgrade TLS-capable hosts, leave genuine http-only untouched
+    check("http ddebs -> https",
+          db.prefer_https("http://ddebs.ubuntu.com/pool/x.ddeb")
+          == "https://ddebs.ubuntu.com/pool/x.ddeb")
+    check("https left unchanged",
+          db.prefer_https("https://deb.debian.org/x") == "https://deb.debian.org/x")
+    check("http-only host (centos) left as-is",
+          db.prefer_https("http://debuginfo.centos.org/x.rpm")
+          == "http://debuginfo.centos.org/x.rpm")
+    check("unknown http host not force-upgraded",
+          db.prefer_https("http://evil.example.com/x")
+          == "http://evil.example.com/x")
+    check("DDEBS_POOL is https", db.DDEBS_POOL.startswith("https://"))
+
+    # looks_like_package: real archive magics vs an HTML error page
+    check("ar (deb) magic recognised", db.looks_like_package(b"!<arch>\n") is not None)
+    check("rpm magic recognised", db.looks_like_package(b"\xed\xab\xee\xdb\x00") is not None)
+    check("xz magic recognised", db.looks_like_package(b"\xfd7zXZ\x00") is not None)
+    check("HTML error page rejected", db.looks_like_package(b"<!DOCTYPE html>") is None)
+    check("empty rejected", db.looks_like_package(b"") is None)
+
+    # verify_downloaded_package on real temp files (magic + sha256)
+    d = Path(tempfile.mkdtemp())
+    try:
+        good = d / "pkg.ddeb"; good.write_bytes(b"!<arch>\ndebian-binary  2.0\n")
+        bad = d / "err.ddeb"; bad.write_bytes(b"<html><body>404 Not Found</body></html>")
+        check("verify accepts a real ar archive", db.verify_downloaded_package(good) is True)
+        check("verify rejects an HTML error page", db.verify_downloaded_package(bad) is False)
+        h = hashlib.sha256(good.read_bytes()).hexdigest()
+        check("verify accepts matching sha256", db.verify_downloaded_package(good, h) is True)
+        check("verify rejects wrong sha256",
+              db.verify_downloaded_package(good, "00" * 32) is False)
+    finally:
+        shutil.rmtree(d, ignore_errors=True)
+
+
 def main():
     for t in (test_corroborate_processes, test_classify_failure,
               test_assess_fixtures, test_advisory_nonempty, test_ioc_extractor,
               test_crash_report, test_vol3_demotion, test_telemetry,
-              test_html_report_xss):
+              test_html_report_xss, test_download_integrity):
         try:
             t()
         except Exception as exc:  # a crashing test is a failing test

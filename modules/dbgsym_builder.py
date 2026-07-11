@@ -44,6 +44,7 @@ USAGE (import)
 """
 
 import argparse
+import hashlib
 import json
 import lzma
 import os
@@ -69,7 +70,93 @@ except Exception:  # pragma: no cover - standalone fallback
     def msg_info(m): print(f"  [-] {m}")
 
 LAUNCHPAD_API = "https://api.launchpad.net/devel/ubuntu/+archive/primary"
-DDEBS_POOL = "http://ddebs.ubuntu.com/pool/main/l"
+DDEBS_POOL = "https://ddebs.ubuntu.com/pool/main/l"
+
+
+# ── download integrity (H2/H3) ────────────────────────────────────────────────
+# Hosts confirmed to serve these debug packages over TLS. A plain-http URL for one
+# of these is silently upgraded to https so a passive network attacker can't tamper
+# in transit. Hosts NOT here (e.g. the legacy CentOS vault debuginfo mirror, which
+# is http-only) can't be upgraded — the package-magic + sha256 check below is the
+# integrity mitigation there.
+_HTTPS_CAPABLE_HOSTS = (
+    "ddebs.ubuntu.com", "api.launchpad.net", "launchpad.net",
+    "launchpadlibrarian.net", "kali.download", "http.kali.org",
+    "deb.debian.org", "ftp.debian.org", "kojipkgs.fedoraproject.org",
+    "download.rockylinux.org", "dl.rockylinux.org", "repo.almalinux.org",
+)
+
+# First bytes of the archive formats a debug package legitimately arrives as. A
+# download that matches none of these is an HTML error page / redirect / garbage
+# from a broken or hostile mirror — refuse it before dwarf2json ever parses it.
+_PKG_MAGICS = {
+    b"!<arch>": "deb/ddeb (ar archive)",
+    b"\xed\xab\xee\xdb": "rpm",
+    b"\xfd7zXZ\x00": "xz",
+    b"\x1f\x8b": "gzip",
+    b"BZh": "bzip2",
+    b"\x28\xb5\x2f\xfd": "zstd",
+    b"PK\x03\x04": "zip",
+}
+
+
+def prefer_https(url: str) -> str:
+    """Upgrade a plain-http URL to https when the host is known to support TLS.
+    Pure. Leaves genuinely http-only hosts untouched (they're covered by the
+    post-download integrity check)."""
+    if url.startswith("http://"):
+        host = url.split("/", 3)[2].split("@")[-1].split(":")[0]
+        if host in _HTTPS_CAPABLE_HOSTS:
+            return "https://" + url[len("http://"):]
+    return url
+
+
+def looks_like_package(head: bytes) -> Optional[str]:
+    """Return a human label if `head` (first bytes of a file) is one of the
+    archive formats a debug package legitimately uses, else None. Pure."""
+    for magic, kind in _PKG_MAGICS.items():
+        if head.startswith(magic):
+            return kind
+    return None
+
+
+def _sha256_file(path: Path) -> str:
+    h = hashlib.sha256()
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(1024 * 1024), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def verify_downloaded_package(path: Path, expected_sha256: Optional[str] = None) -> bool:
+    """Integrity-check a freshly downloaded debug package BEFORE it is extracted.
+
+    Two checks: (1) the file's magic must be a real package/archive format — this
+    catches an HTML error page, a redirect body, or garbage served by a MITM or a
+    broken mirror; (2) if a known-good ``expected_sha256`` is supplied, it must
+    match. Always logs the computed sha256 for auditability. This is defence in
+    depth, not a signature check — some legacy debuginfo mirrors are http-only —
+    but it stops the obvious tamper/corruption cases. Fails CLOSED on a clear
+    magic/hash mismatch, open on an unexpected read error."""
+    try:
+        with open(path, "rb") as f:
+            head = f.read(8)
+    except Exception as e:
+        msg_warn(f"Integrity check could not read {path.name}: {e}")
+        return True
+    digest = _sha256_file(path)
+    kind = looks_like_package(head)
+    if kind is None:
+        msg_fail(f"Downloaded {path.name} is NOT a package archive "
+                 f"(magic {head[:4].hex()}) — refusing it (possible tampered/"
+                 f"broken mirror). sha256={digest[:16]}…")
+        return False
+    if expected_sha256 and digest.lower() != expected_sha256.lower():
+        msg_fail(f"{path.name} sha256 mismatch — refusing it. "
+                 f"got {digest[:16]}…, expected {expected_sha256[:16]}…")
+        return False
+    msg_ok(f"Verified {path.name}: {kind}, sha256={digest[:16]}…")
+    return True
 
 # Debian-family debug symbols are NOT on Launchpad/ddebs.ubuntu.com. Kali and
 # Debian publish the kernel debug image as an ordinary `linux-image-<ver>-dbg`
@@ -339,6 +426,10 @@ def download_resume(urls: List[str], dest: Path,
 
     dest.parent.mkdir(parents=True, exist_ok=True)
     for idx, url in enumerate(urls):
+        url = prefer_https(url)
+        if url.startswith("http://"):
+            msg_warn(f"{url.split('/')[2]} is http-only — cannot secure transport; "
+                     "relying on the post-download package-integrity check.")
         expected, ranges = _head(url)
         if not expected:
             continue
@@ -352,7 +443,10 @@ def download_resume(urls: List[str], dest: Path,
             if cur >= expected:
                 print()
                 msg_ok(f"Downloaded {dest.name} ({cur/1024/1024:.1f} MB)")
-                return True
+                if verify_downloaded_package(dest):
+                    return True
+                dest.unlink(missing_ok=True)
+                break  # tampered/garbage — try the next source
             attempt += 1
             if ranges:
                 cmd = ["curl", "-sL", "-C", "-", "--connect-timeout", "20",
@@ -369,7 +463,10 @@ def download_resume(urls: List[str], dest: Path,
             if new >= expected:
                 print()
                 msg_ok(f"Downloaded {dest.name} ({new/1024/1024:.1f} MB)")
-                return True
+                if verify_downloaded_package(dest):
+                    return True
+                dest.unlink(missing_ok=True)
+                break  # tampered/garbage — try the next source
             pct = int(new * 100 / expected)
             print(f"\r  [-] Download ({host}): {pct}% "
                   f"({new/1024/1024:.0f}/{expected/1024/1024:.0f} MB), "
@@ -386,6 +483,7 @@ def download_resume(urls: List[str], dest: Path,
 def _download_urllib(urls: List[str], dest: Path) -> bool:
     """No-curl fallback: straight streaming download (no resume)."""
     for url in urls:
+        url = prefer_https(url)
         try:
             with urllib.request.urlopen(url, timeout=60) as r, \
                     open(dest, "wb") as f:
@@ -393,7 +491,9 @@ def _download_urllib(urls: List[str], dest: Path) -> bool:
             if dest.stat().st_size > 0:
                 msg_ok(f"Downloaded {dest.name} "
                        f"({dest.stat().st_size/1024/1024:.1f} MB)")
-                return True
+                if verify_downloaded_package(dest):
+                    return True
+                dest.unlink(missing_ok=True)  # tampered/garbage — try next
         except Exception as e:
             msg_warn(f"  {url.split('/')[2]} failed: {e}")
     return False
