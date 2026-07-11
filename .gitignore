@@ -63,3 +63,6 @@ tests/fixtures/**/crash_report.json
 tests/fixtures/**/SUMMARY.txt
 run_health.json
 crash_report.json
+
+# stray personal artifact — the author's own disk layout, not tool data
+*sda-parttable-backup*
