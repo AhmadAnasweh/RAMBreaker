@@ -117,14 +117,15 @@ resume sidecar) had to be applied **three times** — each a chance to miss one.
 *Fix:* hoist the shared skeleton into a base class; keep only the PLUGINS tables
 and OS-specific hooks in the subclasses.
 
-### M4 — No integration/canary test drives Volatility *(confirmed)*
-Tests are Tier-A pure-logic only (excellent as far as they go — 93 assertions).
-Nothing exercises the subprocess → parse → resume → report path, so regressions in
-exactly the code changed this session are caught only by manual real-image runs
-(which this session showed are slow and I/O-contended). `TOOLCHAIN.lock` itself
-refers to a "canary matrix (a later step)" that does not exist yet.
-*Fix:* commit one tiny (≤64 MB) image fixture or a recorded Vol JSON corpus and a
-smoke test that runs `extract` + `report` end-to-end.
+### M4 — No integration/canary test drives Volatility *(confirmed → ✅ FIXED)*
+**Fix (`tests/run_canary.py` + `tests/fixtures/canary/fake_vol3.py`):** a Tier-B
+canary drives the REAL pipeline — `Extractor.run` → subprocess → parse →
+`_vol3_success` demotion → `.json.error` sidecar → resume → `write_summary` →
+`run_health` → `crash_report` → `HTMLReportGenerator.generate` — against a fake
+Vol3 stub (no memory image needed; the one un-fakeable step, ISF cache warm-up,
+is stubbed). 21 assertions cover success/clean-empty/silent-struct-demotion/
+hard-fail, resume skip-vs-re-run, taxonomy classification, and report XSS
+encoding of a hostile process name. Run: `python3 tests/run_canary.py`.
 
 ### M5 — "Vol3 silent for 180s → abort (stall)" can false-abort on slow storage *(confirmed live)*
 Observed this session: with two extractions contending on a `vmhgfs-fuse` shared

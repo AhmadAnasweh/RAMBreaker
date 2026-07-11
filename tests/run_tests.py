@@ -6,7 +6,9 @@ Run:  python3 tests/run_tests.py     (exit 0 = all pass, non-zero = failure)
 These pin the pure, kernel-independent logic — the parsing/health/IOC code that
 is *your* code, not Volatility's — so old bugs (e.g. the Bug-#10 silent-empty
 process list) can't silently come back. They deliberately do NOT drive
-Volatility; the canary matrix (a later step) covers real images.
+Volatility. The runtime wiring (subprocess, parse, demotion, resume sidecar,
+run_health/crash_report, HTML report) is covered by the Tier-B canary,
+`tests/run_canary.py`, which drives the real pipeline against a fake Vol3 stub.
 """
 
 import sys
