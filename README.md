@@ -7,7 +7,22 @@ interactive `report.html` — **Windows, Linux, and macOS**.
 
 Full documentation lives in [`claude context/`](<claude context>) — start with
 [`README.md`](<claude context/README.md>) and
-[`TOOL_OVERVIEW.md`](<claude context/TOOL_OVERVIEW.md>).
+[`TOOL_OVERVIEW.md`](<claude context/TOOL_OVERVIEW.md>). Release notes are in
+[`CHANGELOG.md`](CHANGELOG.md).
+
+## Scope & honest limitations
+
+RAMBreaker is a **workflow layer over Volatility**, not a replacement for it — it
+drives Volatility, survives and diagnoses its failures, and correlates the output
+into one report. It works well on the common cases (Windows 10/11, common Linux
+distros with available kernel symbols). It does **not** magically support a
+brand-new kernel: if the community has no ISF and no debug package exists yet, or
+if Volatility's own plugins don't yet handle that kernel's structs, the run will
+fail — but it now fails **loudly and precisely** (symbol-missing vs
+struct-mismatch vs timeout) instead of silently producing an empty report. macOS
+is the weakest OS (Apple symbol availability). See
+[`claude context/PROJECT_ASSESSMENT.md`](<claude context/PROJECT_ASSESSMENT.md>)
+for the candid, full picture.
 
 ## Run
 

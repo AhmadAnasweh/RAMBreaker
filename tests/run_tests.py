@@ -383,6 +383,18 @@ def test_telemetry():
         check("payload preserves report body", pl["fingerprint"] == "abc")
         check("send('') is a no-op (no endpoint)", cr.send({"x": 1}, "") is False)
 
+        # L1: transport drops the free-text reason for the `other` category only
+        rep_fp = {"schema": cr.SCHEMA, "fingerprint": "y", "failed_plugins": [
+            {"name": "a", "category": "other", "reason": "raw scrubbed error text"},
+            {"name": "b", "category": "struct-mismatch", "reason": "kernel struct changed"}]}
+        pl2 = cr.build_payload(rep_fp, "iid")
+        other = next(p for p in pl2["failed_plugins"] if p["category"] == "other")
+        struct = next(p for p in pl2["failed_plugins"] if p["category"] == "struct-mismatch")
+        check("transport drops 'other' free-text reason", other["reason"] == "")
+        check("transport keeps classified reason", struct["reason"] == "kernel struct changed")
+        check("build_payload does not mutate source report",
+              rep_fp["failed_plugins"][0]["reason"] == "raw scrubbed error text")
+
         # REAL localhost transport — validates the POST path with no external svc
         received = {}
         class H(BaseHTTPRequestHandler):

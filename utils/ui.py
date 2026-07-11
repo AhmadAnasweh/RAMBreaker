@@ -5,7 +5,7 @@ import sys
 from pathlib import Path
 from typing import List, Optional
 
-VERSION = "6.0"
+VERSION = "6.1"
 
 if sys.stdout.isatty():
     R = "\033[0;31m"; G = "\033[0;32m"; Y = "\033[1;33m"; B = "\033[0;34m"

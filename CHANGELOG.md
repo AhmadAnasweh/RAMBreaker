@@ -1,0 +1,80 @@
+# Changelog
+
+All notable changes to RAMBreaker (CresCentC) are recorded here.
+
+## v6.1 — 2026-07-11
+
+A hardening + reliability release focused on making failures **loud, diagnosable,
+and honest** — especially the silent ones that let a broken run masquerade as a
+clean one — plus the first real test safety net and a security pass on downloads
+and the HTML report.
+
+### Added
+- **Run-health guard** (`modules/run_health.py`): assesses a finished extraction
+  from its `json/` + local log — process corroboration (pslist vs psscan vs
+  pstree), empty-key-tab detection, a failure taxonomy (symbol-missing /
+  struct-mismatch / timeout / expected-nonbug / …), and a health banner in
+  `SUMMARY.txt` + `run_health.json`. Wired append-only into all three OS extractors.
+- **Local crash report** (`modules/crash_report.py`, Step 1): on a real failure,
+  writes a scrubbed, whitelisted `crash_report.json` failure-fingerprint (no image
+  content; kernel banner reduced to version+distro; addresses/paths redacted) an
+  analyst can hand to the tool author.
+- **Opt-in crash-report transport** (Step 2): default-OFF telemetry
+  (`CRESCENT_TELEMETRY` / `--no-telemetry`), `install_id`, dedup-by-fingerprint,
+  bounded best-effort `send()`, `sample_payload()` for consent. Nothing leaves
+  without explicit opt-in and an endpoint.
+- **Advisory corroboration** (blind spot ③): flags a small high-signal set
+  (Windows `svcscan`/`modules`, Linux/macOS `lsof`) that ran but returned nothing
+  — WARN, worded as an observation, never a verdict.
+- **Tier-B canary** (`tests/run_canary.py` + `tests/fixtures/canary/`): drives the
+  REAL pipeline (subprocess → parse → demotion → sidecar → resume → run_health →
+  crash_report → HTML report) against a fake Vol3 stub, no memory image needed.
+- **Pre-commit hook** (`.githooks/pre-commit`): runs Tier-A + canary before every
+  commit; enable with `git config core.hooksPath .githooks`.
+
+### Fixed
+- **Silent new-kernel failures** (①): a Linux/macOS plugin that exits 0 with an
+  empty result while logging a systemic struct/symbol exception is now demoted to
+  a real failure (was counted as a clean-empty success, its diagnostic stderr
+  discarded).
+- **Resume cache-poisoning** (②): a failed plugin leaves a `<name>.json.error`
+  sidecar so a re-run re-executes it instead of trusting stale/partial output.
+- **Linux/macOS process corroboration** (H1): `linux.psscan` now runs (was absent,
+  so the Bug-#10 pool-scan-vs-linked-list check could never fire on Linux); a
+  `psaux` fallback covers macOS; the "psscan ≫ pslist" WARN is gated to Windows
+  (normal on Linux).
+- **`linux_kernel.json` on the cached-symbol path**: persisted even when symbols
+  are already warm, so `crash_report`/`system_info` get the kernel/distro.
+
+### Security
+- **HTML report XSS** (H4): the embedded data blob is now encoded via
+  `safe_js_json` (`< > &` + U+2028/9 → `\uXXXX`), closing script-context breakout
+  from attacker-controlled memory strings; regression-tested end-to-end.
+- **Download integrity** (H2/H3): debug-package downloads upgraded to HTTPS where
+  supported and verified by archive magic + sha256 before extraction
+  (`dbgsym_builder`); Volatility symbol zips verified + optionally pinnable
+  (`installer.verify_symbol_zip` / `PINNED_SYMBOL_SHA256`).
+- **Transport payload** (L1): the `other` failure category's free-text reason is
+  dropped from the sent payload (kept only its category).
+
+### Testing
+- Tier-A golden suite (`tests/run_tests.py`): **133 assertions**, zero-dependency,
+  no images — pins run-health, crash-report/scrub, telemetry (incl. a real
+  localhost round-trip), download integrity, and the report XSS encoding.
+
+### Docs (`claude context/`)
+- `TOOL_WEAK_SPOTS.md` (whole-codebase weak-spot analysis, H1–H4 fixed),
+  `FUTURE_CRASH_REPORTING.md` (Steps 1–2 built + new-kernel blind-spot analysis),
+  `PROJECT_ASSESSMENT.md` (honest strategic assessment: the idea, the new-kernel
+  ceiling, Docker, a community ISF commons, struct-mismatch, and the verdict).
+
+### Known limitations (honest)
+Bleeding-edge kernels can still fail at the Volatility layer (struct-mismatch is
+upstream's to fix); this release makes such failures **diagnosable**, not
+impossible. macOS remains the weakest OS. See `PROJECT_ASSESSMENT.md`.
+
+## v6.0
+
+OS-split refactor of v5.0 — every multi-OS module became
+`<name>.{windows,linux,mac}.py` behind a thin `importlib` dispatcher; added the
+String Hunt module. See `claude context/ARCHITECTURE_V6.md`.

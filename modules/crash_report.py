@@ -396,8 +396,20 @@ def get_install_id(create: bool = False) -> Optional[str]:
 def build_payload(report: Dict[str, Any],
                   install_id: Optional[str]) -> Dict[str, Any]:
     """The already-scrubbed, whitelisted crash report + an opt-in install_id. No
-    new unscrubbed fields are ever added — the report itself is the whitelist."""
+    new unscrubbed fields are ever added — the report itself is the whitelist.
+
+    L1 hardening: the ``other`` failure category's ``reason`` is last-resort,
+    scrubbed-but-free-form error text. For the SENT payload we drop it entirely
+    (keep only the category), so an unclassified error string can never leave the
+    box even scrubbed. Every classified category has a static, safe reason string,
+    which is kept. Does not mutate ``report``."""
     payload = dict(report)
+    fp = payload.get("failed_plugins")
+    if isinstance(fp, list):
+        payload["failed_plugins"] = [
+            ({**p, "reason": ""} if p.get("category") == "other" else dict(p))
+            for p in fp
+        ]
     payload["install_id"] = install_id
     return payload
 
