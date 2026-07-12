@@ -66,3 +66,7 @@ python3 modules/injection_correlator.py --os windows --injected malfind.json --m
   reflective-DLL correlation), **no false HIGH/LOW** after tightening the LOW
   anomaly to unregistered-AND-unbacked. Standalone CLI, `--auto`, filters, and
   JSON/CSV export all verified.
+- **Full-pipeline** run (`full -m full` on `Windows2.raw`): confirmed end-to-end —
+  the pipeline extracted `malfind` + `ldrmodules`, ran the correlation step
+  automatically (no manual input), wrote `injection_correlation.json`/`.txt`, and
+  the generated `report.html` shows the populated **Injection** tab (5 MEDIUM).

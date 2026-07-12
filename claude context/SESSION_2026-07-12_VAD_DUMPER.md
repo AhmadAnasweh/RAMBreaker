@@ -54,12 +54,16 @@ dumps, across both engines and all three OSes:**
 | kalilinux.lime | Linux / Vol3 | 139 |
 | MAC | macOS / Vol3 | 252 |
 | MAC2.raw | macOS / Vol3 | 151 |
-| linux.vmem | Linux / Vol3 (4 GB) | slow case — re-running with a longer budget |
+| linux.vmem | Linux / Vol3 (4 GB) | 152 (after extraction reused) |
 
-All `inj=0` (benign test images; **no false positives** — the WRITECOPY fix holding
-on real data). `linux.vmem` is the documented slow 4 GB VMware image (full
-extraction ~38 min); it exceeded the 25-min sweep cap during *extraction*, not a
-VAD-module fault — the other Linux images validate the Linux path.
+**8/8 validated.** All `inj=0` (benign test images; **no false positives** — the
+WRITECOPY fix holding on real data). `linux.vmem` is the documented slow 4 GB
+VMware image: its full `fast` extraction exceeds ~45 min, so the initial timed-out
+runs never reached the dump step — an operational limit, not a VAD-module fault.
+Once the extraction JSON existed, the VAD dump itself ran in 3m 48s (152 VMA
+regions from systemd et al., `pid.1.vma.0x…-0x….dmp`). Note for later: `dump-vad`
+only needs the process list, so a future refinement could run a minimal
+process-only extraction instead of full `fast` mode.
 
 Example (`smss.exe`): 14 regions dumped as
 `smss.exe.<off>.0x…-0x….dmp` files (512 K/1 M heaps, 128 K mapped, 4–8 K
