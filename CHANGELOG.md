@@ -2,6 +2,18 @@
 
 All notable changes to RAMBreaker (CresCentC) are recorded here.
 
+## Unreleased
+
+### Added
+- **VAD memory-region dumper** (`dump-vad`, module `vad_dumper`): dump a process's
+  LIVE in-memory regions — heaps, stacks, mapped data, and injected code — instead
+  of just its on-disk PE (`vad_dumps/` + `vad_dump_report.txt`). Windows VAD
+  (`vadinfo`/`vaddump`), Linux/macOS memory maps (`proc.Maps`/`proc_maps`). Each
+  region is hashed; RWX and executable-private regions are flagged as possible
+  injection (observations, not verdicts; `PAGE_EXECUTE_WRITECOPY` correctly not
+  flagged). Wired into the CLI, menu `[V]`, and DFIR/`dump-all`. Validated across
+  the RAMDUMPS image set (Windows Vol2+Vol3, Linux, macOS). Tests: +8 (`141` total).
+
 ## v6.1 — 2026-07-11
 
 A hardening + reliability release focused on making failures **loud, diagnosable,
