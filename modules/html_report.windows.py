@@ -113,6 +113,7 @@ class HTMLReportGenerator:
         root_targets = {
             "system_info":     "json/system_info.json",
             "correlation":     "json/correlation_report.json",
+            "injection":       "injection_correlation.json",
             "browser":         "iocs/json/browser_history.json",
             "network_map":     "json/network_map.json",
             "registry":        "json/registry_report.json",
@@ -134,6 +135,7 @@ class HTMLReportGenerator:
         # Convenience aliases for pages.
         data["system_info"]     = data["root_json"].get("system_info", {})
         data["correlation"]     = data["root_json"].get("correlation", {})
+        data["injection"]       = data["root_json"].get("injection", {})
         data["browser"]         = data["root_json"].get("browser", {})
         data["network_map"]     = data["root_json"].get("network_map", {})
         data["timeline"]        = data["root_json"].get("timeline", [])
@@ -471,6 +473,7 @@ const D=__DATA__;
 const PAGES=[
   ['summary','Summary + Device',pageSummary],
   ['correlation','Correlation',pageCorrelation],
+  ['injection','Injection',pageInjection],
   ['browser','Browser + Plugins',pageBrowserPlugins],
   ['tree','Process Tree',pageTree],
   ['graph','Process Graph + Network',pageGraph],
@@ -482,6 +485,20 @@ const PAGES=[
   ['registry','Registry',pageRegistry],
   ['other','Other JSON',pageOther]
 ];
+function pageInjection(el){
+  const inj=D.injection||{},findings=(inj.findings||[]),b=((inj.summary||{}).by_confidence)||{};
+  let h='<div class="card"><h2>Fileless-Injection Correlation</h2>'+sourceTag('injection',D.sources&&D.sources.injection)
+   +'<p class="note">malfind (injected memory) &times; module-list (loader registration). '
+   +'HIGH = an injected region that is unregistered/unbacked in the loader lists; MEDIUM = an injected region alone; '
+   +'LOW = an unregistered executable region with no malfind hit. Observations, not verdicts &mdash; verify.</p>';
+  if(!findings.length){h+='<div class="empty">No injected regions correlated (needs a full run with malfind + the module-list plugin: ldrmodules / proc.Maps).</div></div>';el.innerHTML=h;return;}
+  h+='<div class="grid">'
+   +'<div class="stat"><div class="n">'+esc(b.HIGH||0)+'</div><div class="l">HIGH confidence</div></div>'
+   +'<div class="stat"><div class="n">'+esc(b.MEDIUM||0)+'</div><div class="l">MEDIUM</div></div>'
+   +'<div class="stat"><div class="n">'+esc(b.LOW||0)+'</div><div class="l">LOW</div></div></div>';
+  h+=makeTable(findings,'injTbl',['confidence','pid','process_name','base_address','protection','header_signature_found','registered_in_module_list','mapped_path','evidence'],3000);
+  h+='</div>';el.innerHTML=h;
+}
 function esc(v){return String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
 function norm(s){return String(s??'').toLowerCase()}
 function rows(obj){if(!obj)return[];if(Array.isArray(obj))return obj.map(x=>typeof x==='object'&&x!==null?x:{value:x});if(typeof obj==='object'){for(const k of ['rows','Rows','data','Data','items','results','records','values'])if(Array.isArray(obj[k]))return rows(obj[k]);return [obj]}return[{value:obj}]}

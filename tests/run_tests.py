@@ -561,12 +561,68 @@ def test_vad_injection():
     check("linux r-x file-backed -> not flagged", lin._is_injection("r-xp", True) is None)
 
 
+def test_injection_correlator():
+    from modules import injection_correlator as ic
+    print("[injection_correlator]")
+
+    # header detection per OS
+    check("MZ header detected (Windows)",
+          ic.detect_header({"Hexdump": "0x1f0000\t4d 5a 90 00\tMZ.."}, "windows")[0])
+    check("ELF header detected (Linux)",
+          ic.detect_header({"Hexdump": "0x400000\t7f 45 4c 46 02\t.ELF"}, "linux")[0])
+    check("Mach-O header detected (macOS)",
+          ic.detect_header({"Hexdump": "0x1000\tcf fa ed fe 07\t...."}, "macos")[0])
+    check("no header on random bytes",
+          not ic.detect_header({"Hexdump": "0x1000\t00 11 22 33\t...."}, "windows")[0])
+
+    # confidence classification (the core engine)
+    malfind = [
+        {"PID": 1337, "Process": "evil.exe", "Start VPN": 0x1f0000, "End VPN": 0x1fffff,
+         "Protection": "PAGE_EXECUTE_READWRITE", "PrivateMemory": 1,
+         "Hexdump": "0x1f0000\t4d 5a 90 00\tMZ.."},
+        {"PID": 2000, "Process": "proc.exe", "Start VPN": 0x400000, "End VPN": 0x40ffff,
+         "Protection": "PAGE_EXECUTE_READWRITE", "PrivateMemory": 1, "Hexdump": ""},
+    ]
+    ldr = [
+        {"Pid": 1337, "Process": "evil.exe", "Base": 0x1f0000,
+         "InLoad": False, "InInit": False, "InMem": False, "MappedPath": ""},
+        {"Pid": 5, "Process": "svc.exe", "Base": 0x7ff000,
+         "InLoad": False, "InInit": False, "InMem": False, "MappedPath": ""},
+        {"Pid": 9, "Process": "good.exe", "Base": 0x140000,
+         "InLoad": True, "InInit": True, "InMem": True, "MappedPath": "C:\\good.exe"},
+    ]
+    inj, mods = ic.parse_windows(malfind, ldr)
+    f = ic.correlate(inj, mods, "windows")
+    by = {}
+    for x in f:
+        by[x["confidence"]] = by.get(x["confidence"], 0) + 1
+    check("malfind + unlinked module -> HIGH", by.get("HIGH") == 1, detail=str(by))
+    check("malfind alone -> MEDIUM", by.get("MEDIUM") == 1, detail=str(by))
+    check("module anomaly alone -> LOW", by.get("LOW") == 1, detail=str(by))
+    check("registered+backed module -> not flagged",
+          not any(str(x["pid"]) == "9" for x in f))
+
+    # Linux path (proc.Maps: backing path = registered)
+    li, lm = ic.parse_linux(
+        [{"PID": 42, "Process": "x", "Start": 0x1000, "End": 0x2000,
+          "Protection": "rwx", "Hexdump": "0x1000\t7f 45 4c 46\t.ELF"}],
+        [{"PID": 42, "Start": 0x1000, "End": 0x2000, "Flags": "rwxp", "File Path": ""}])
+    lf = ic.correlate(li, lm, "linux")
+    check("linux anon rwx + malfind -> HIGH",
+          any(x["confidence"] == "HIGH" for x in lf), detail=str(lf))
+
+    # auto-OS detection
+    check("auto-detect Windows", ic.detect_os_from_data(malfind, ldr) == "windows")
+    check("os alias mac->macos", ic._norm_os("mac") == "macos")
+
+
 def main():
     for t in (test_corroborate_processes, test_classify_failure,
               test_assess_fixtures, test_advisory_nonempty, test_ioc_extractor,
               test_crash_report, test_vol3_demotion, test_telemetry,
               test_html_report_xss, test_download_integrity,
-              test_symbol_zip_integrity, test_vad_injection):
+              test_symbol_zip_integrity, test_vad_injection,
+              test_injection_correlator):
         try:
             t()
         except Exception as exc:  # a crashing test is a failing test

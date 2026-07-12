@@ -39,6 +39,7 @@ from modules.process_dumper import ProcessDumper
 from modules.vad_dumper import VADDumper
 from modules.strings_extractor import StringsExtractor
 from modules.correlator import Correlator
+from modules import injection_correlator
 from modules.ioc_extractor import IOCExtractor
 from modules.process_tree import ProcessTree
 from modules.network_map import NetworkMap
@@ -2577,6 +2578,22 @@ def _cmd_core(args, skip_ioc=False, label="FULL"):
     cor.load_data(od)
     cor.generate_report(od)
     msg_ok("Correlation report done")
+
+    # Step 5a: Fileless-injection correlation (malfind x module-list). Best-effort,
+    # never breaks the pipeline; writes injection_correlation.json for the report.
+    try:
+        isum = injection_correlator.run_from_output_dir(
+            od, vol.os_type, clog.get_logger("INJECT"))
+        b = isum.get("by_confidence", {})
+        if isum.get("findings_total"):
+            (msg_warn if b.get("HIGH") else msg_info)(
+                f"Injection correlation: {b.get('HIGH', 0)} HIGH, "
+                f"{b.get('MEDIUM', 0)} MEDIUM, {b.get('LOW', 0)} LOW "
+                "(malfind x module-list)")
+        else:
+            msg_info("Injection correlation: no injected regions found")
+    except Exception as e:
+        ml.warning("Injection correlation skipped: %s", e)
     print()
 
     # Step 5b: Popular Files (all OSes)
