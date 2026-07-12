@@ -540,12 +540,33 @@ def test_symbol_zip_integrity():
         shutil.rmtree(d, ignore_errors=True)
 
 
+def test_vad_injection():
+    from modules.vad_dumper import _load_os_module
+    print("[vad_dumper injection heuristic]")
+    w = _load_os_module("windows")
+    check("RWX region -> injection flag",
+          "injection" in (w._is_injection("PAGE_EXECUTE_READWRITE", False) or "").lower())
+    check("executable + no backing file -> shellcode flag",
+          w._is_injection("PAGE_EXECUTE_READ", False) is not None)
+    check("EXECUTE_WRITECOPY file-backed image -> NOT flagged (normal COW code)",
+          w._is_injection("PAGE_EXECUTE_WRITECOPY", True) is None)
+    check("executable file-backed image -> NOT flagged (normal code)",
+          w._is_injection("PAGE_EXECUTE_READ", True) is None)
+    check("read-only mapped -> not flagged",
+          w._is_injection("PAGE_READONLY", True) is None)
+    check("private data (RW, no exec) -> not flagged",
+          w._is_injection("PAGE_READWRITE", False) is None)
+    lin = _load_os_module("linux")
+    check("linux wx region -> flag", lin._is_injection("rwxp", False) is not None)
+    check("linux r-x file-backed -> not flagged", lin._is_injection("r-xp", True) is None)
+
+
 def main():
     for t in (test_corroborate_processes, test_classify_failure,
               test_assess_fixtures, test_advisory_nonempty, test_ioc_extractor,
               test_crash_report, test_vol3_demotion, test_telemetry,
               test_html_report_xss, test_download_integrity,
-              test_symbol_zip_integrity):
+              test_symbol_zip_integrity, test_vad_injection):
         try:
             t()
         except Exception as exc:  # a crashing test is a failing test

@@ -36,6 +36,7 @@ from modules.volatility import VolatilityWrapper
 from modules.extractor import Extractor, PLUGINS, VOL2_EXCLUSIVE, VALID_MODES
 from modules.file_dumper import FileDumper
 from modules.process_dumper import ProcessDumper
+from modules.vad_dumper import VADDumper
 from modules.strings_extractor import StringsExtractor
 from modules.correlator import Correlator
 from modules.ioc_extractor import IOCExtractor
@@ -74,7 +75,7 @@ def _build_parser():
                "  python3 crescent_toolkit.py eye -o ./results/\n")
     p.add_argument("command", nargs="?", default="menu",
                    choices=["menu", "extract", "dump-files", "dump-procs",
-                            "dump-all",
+                            "dump-all", "dump-vad",
                             "strings", "correlate", "iocs", "report",
                             "timeline", "evtx", "export", "elk", "core", "full",
                             "plugins", "ctf", "eye", "dfir",
@@ -109,6 +110,12 @@ def _build_parser():
                    help="hunt: disable case-insensitive matching")
     p.add_argument("--hunt-no-wide", action="store_true",
                    help="hunt: skip wide (UTF-16LE) string matching")
+    p.add_argument("--vad-pid", dest="vad_pid", nargs="+", type=int, metavar="PID",
+                   help="dump-vad: dump VAD memory regions for these PID(s)")
+    p.add_argument("--vad-name", dest="vad_name", metavar="NAME",
+                   help="dump-vad: dump VAD regions for processes matching NAME "
+                        "(e.g. 'notepad'). Use 'all' for every process, "
+                        "'suspicious' for flagged ones.")
     p.add_argument("--no-telemetry", dest="no_telemetry", action="store_true",
                    help="disable opt-in crash-report transport for this run "
                         "(equivalent to CRESCENT_TELEMETRY=0). Telemetry is OFF "
@@ -465,17 +472,43 @@ def _cmd_dump_all(args):
             msg_warn(f"File dump error: {e}")
         msg_ok(f"Files: {n_files} → {file_dir}")
 
+    def _dump_vad_phase():
+        # Dump every process's VAD memory REGIONS — heaps, stacks, mapped data,
+        # and injected code — not just the PE image. This is the "what was
+        # actually in memory" layer, and it flags regions that look like injection.
+        try:
+            vd = VADDumper(vol, clog.get_logger("VADDUMPER"), args.jobs,
+                           timeout=getattr(args, "timeout", 600))
+            vd.load_processes(od)
+            if vd.processes:
+                msg_info(f"Dumping VAD memory regions for ALL {len(vd.processes)} "
+                         "processes (heaps/stacks/mapped/injected — heavy)...")
+                with Timer() as t:
+                    vres = vd.dump_all(image, dd)
+                vd.write_report(dd, vres)
+                msg_ok(f"VAD regions: {vres['total_regions']} from "
+                       f"{vres['processes']} procs → {dd / 'vad_dumps'}  "
+                       f"({format_duration(t.elapsed)})")
+                if vres.get("injection_flags"):
+                    msg_warn(f"{vres['injection_flags']} region(s) flagged as "
+                             "possible injection — see dumped_all/vad_dump_report.txt")
+            else:
+                msg_warn("No processes loaded — skipping VAD dump.")
+        except Exception as e:
+            msg_warn(f"VAD dump error: {e}")
+
     # Ordering: processes-first by default. --files-first recovers the (usually
     # smaller/faster) filescan/page-cache files BEFORE the heavy per-process
-    # memory dumps — useful when file content is the priority and the full
-    # process-memory dump would otherwise run for a long time first.
+    # memory dumps. The VAD region dump (live in-memory content + injected code)
+    # always runs last, after the PE/file dumps.
     if getattr(args, "files_first", False):
-        msg_info("Order: FILES first, then processes  (--files-first)")
+        msg_info("Order: FILES first, then processes, then VAD regions  (--files-first)")
         _dump_files_phase()
         _dump_procs_phase()
     else:
         _dump_procs_phase()
         _dump_files_phase()
+    _dump_vad_phase()
 
     print_line()
     msg_ok(f"DUMP-ALL complete → {dd}")
@@ -1323,6 +1356,129 @@ def _dump_exe_selection(num_str, proc_list, pd, image, dump_dir):
         else:
             msg_fail(f"[{p['pid']}] {p['name']} -- all methods failed")
         print_line()
+
+
+def _vad_prepare(args, mode="fast"):
+    """Shared setup for VAD dumping: resolve image/output, ensure process data
+    exists (extract if not), and return (image, od, clog, vol)."""
+    image = _resolve_image_or_exit(args.image)
+    od = _resolve_output(args.image, args.output)
+    clog = CrescentLogger(str(od), args.quiet, args.log)
+    clog.log_session_info(image, str(od), mode="dump-vad")
+    jd = od / "json"
+    has_proc = jd.is_dir() and any(
+        list(jd.glob(f"*{p}*")) for p in ("pslist", "psscan", "pstree"))
+    if not has_proc:
+        msg_info("No prior process extraction — running one first "
+                 "(needed for the process list)...")
+        vol = _init_vol(clog, image, args)
+        if vol.os_type in ("linux", "mac"):
+            _resolve_linux_symbols(vol, image, od, args)
+        Extractor(vol, clog.get_logger("EXTRACTOR"), args.jobs,
+                  getattr(args, "speed", "normal")).run(image, od, args.mode or mode)
+    else:
+        vol = _init_vol_from_existing(clog, image, od, args)
+        if vol.os_type in ("linux", "mac"):
+            _resolve_linux_symbols(vol, image, od, args)
+    return image, od, clog, vol
+
+
+def _vad_select_loop(vd, od, clog):
+    """Interactive process picker for VAD dumping (search by name/PID, 'all',
+    'suspicious', or numbered pick)."""
+    while True:
+        sel = prompt("\nVAD dump — process name or PID (e.g. 'notepad'), "
+                     "'all', 'suspicious', or 'q' to cancel: ").strip()
+        if not sel or sel.lower() == "q":
+            return []
+        if sel.lower() == "all":
+            return vd.processes
+        if sel.lower() in ("suspicious", "sus"):
+            try:
+                pd = ProcessDumper(vd.vol, clog.get_logger("PROCDUMPER"))
+                pd.load_processes(od)
+                sus_pids = {p["pid"] for p in pd.detect_suspicious()}
+                picks = [p for p in vd.processes if p["pid"] in sus_pids]
+                if not picks:
+                    msg_warn("No suspicious processes flagged."); continue
+                return picks
+            except Exception as e:
+                msg_warn(f"Suspicious detection failed: {e}"); continue
+        matches = vd.search_processes(sel)
+        if not matches:
+            msg_warn(f"No process matches '{sel}'."); continue
+        for i, p in enumerate(matches[:40], 1):
+            print(f"   [{i:>2}] PID {str(p['pid']):>7}  {p['name']}")
+        pick = prompt("Pick number(s) (e.g. 1,3 or 1-4), or Enter for ALL shown: ").strip()
+        if not pick:
+            return matches[:40]
+        idxs = parse_selection(pick, len(matches[:40]))
+        chosen = [matches[i - 1] for i in idxs if 1 <= i <= len(matches[:40])]
+        if chosen:
+            return chosen
+        msg_warn("Nothing selected.")
+
+
+def _cmd_dump_vad(args):
+    """Dump a process's VAD memory REGIONS (Windows) — heaps, stacks, mapped data,
+    and injected code — i.e. what was ACTUALLY in memory, not just the on-disk PE
+    image. On Linux/macOS it dumps the equivalent process memory maps. Regions that
+    look like code injection (RWX, or executable+private) are flagged.
+
+    Pick a process interactively, or script it with --vad-pid / --vad-name.
+    Output: <output>/vad_dumps/pid_<PID>_<name>/  and  vad_dump_report.txt
+    """
+    if not args.image:
+        msg_fail("--image (-i) required"); sys.exit(1)
+    image, od, clog, vol = _vad_prepare(args)
+
+    vd = VADDumper(vol, clog.get_logger("VADDUMPER"), args.jobs,
+                   timeout=getattr(args, "timeout", 600))
+    n = vd.load_processes(od)
+    if not n:
+        msg_fail("No processes loaded (ISF/profile may be missing) — cannot VAD-dump.")
+        return
+    print_line()
+    msg_ok(f"VAD DUMP  Image: {Path(image).name}  Engine: {vol.vol_version}"
+           + (f" [{vol.profile}]" if vol.profile else "") + f"  Processes: {n}")
+    print_line()
+
+    name = getattr(args, "vad_name", None)
+    if getattr(args, "vad_pid", None):
+        want = {str(x) for x in args.vad_pid}
+        targets = [p for p in vd.processes if p["pid"] in want]
+    elif name and name.lower() == "all":
+        targets = vd.processes
+    elif name and name.lower() in ("suspicious", "sus"):
+        pd = ProcessDumper(vol, clog.get_logger("PROCDUMPER")); pd.load_processes(od)
+        sus = {p["pid"] for p in pd.detect_suspicious()}
+        targets = [p for p in vd.processes if p["pid"] in sus]
+    elif name and name.lower() == "first":
+        _skip = {"system", "registry", "idle", "kernel_task", "kernel", "memcompression"}
+        real = [p for p in vd.processes
+                if p["name"].lower().split(".")[0].strip() not in _skip and p["name"].strip()]
+        targets = (real or vd.processes)[:2]
+    elif name:
+        targets = vd.search_processes(name)
+    else:
+        targets = _vad_select_loop(vd, od, clog)
+
+    if not targets:
+        msg_warn("No processes selected — nothing dumped."); return
+
+    msg_info(f"Dumping VAD regions for {len(targets)} process(es) "
+             "(one Volatility pass per PID)...")
+    with Timer() as t:
+        results = vd._dump_many(image, od, targets)
+    vd.write_report(od, results)
+    print_line()
+    msg_ok(f"VAD dump: {results['total_regions']} regions from "
+           f"{results['processes']} process(es) → {results['dir']}  "
+           f"({format_duration(t.elapsed)})")
+    if results.get("injection_flags"):
+        msg_warn(f"{results['injection_flags']} region(s) flagged as POSSIBLE "
+                 "code injection — see vad_dump_report.txt")
+    print_line()
 
 
 def _cmd_strings(args):
@@ -2617,8 +2773,9 @@ def _interactive_menu(args):
         print()
         print(f"   {W}[1]{N} Extractor        - Run Volatility plugins (parallel)")
         print(f"   {W}[2]{N} File Dumper       - Dump files from memory (parallel)")
-        print(f"   {W}[3]{N} Process Dumper    - Dump processes from memory")
-        print(f"   {W}[6]{N} Dump ALL          - Every process (PE/ELF/Mach-O) + every file")
+        print(f"   {W}[3]{N} Process Dumper    - Dump processes as executables (PE/ELF/Mach-O)")
+        print(f"   {W}[V]{N}  VAD Dumper        - Dump a process's memory REGIONS (live content + injected code)")
+        print(f"   {W}[6]{N} Dump ALL          - Every process (PE/ELF/Mach-O) + every file + VAD regions")
         print(f"   {W}[4]{N} Strings           - Extract strings from memory")
         print(f"   {W}[5]{N} Correlator        - Correlate findings")
         print(f"   {W}[7]{N} IOC Extractor     - Extract IOCs from strings/txt")
@@ -2702,6 +2859,12 @@ def _interactive_menu(args):
             _prompt_image(ac)
             if ac.image:
                 _cmd_dump_procs(ac); _pause()
+        elif ch == "V":
+            ac = argparse.Namespace(**vars(args))
+            ac.vad_pid = None; ac.vad_name = None
+            _prompt_image(ac)
+            if ac.image:
+                _cmd_dump_vad(ac); _pause()
         elif ch == "6":
             ac = argparse.Namespace(**vars(args))
             _prompt_image(ac)
@@ -3140,6 +3303,7 @@ def main():
             "dump-files": lambda: _cmd_dump_files(args),
             "dump-procs": lambda: _cmd_dump_procs(args),
             "dump-all": lambda: _cmd_dump_all(args),
+            "dump-vad": lambda: _cmd_dump_vad(args),
             "strings": lambda: _cmd_strings(args),
             "correlate": lambda: _cmd_correlate(args),
             "iocs": lambda: _cmd_iocs(args),
