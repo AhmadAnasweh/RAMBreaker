@@ -93,3 +93,4 @@ Speed: `normal fast fastest`. Full flag/command reference in `ARCHITECTURE_V6.md
 | `TOOL_WEAK_SPOTS.md` | Whole-codebase weak-spot analysis ranked by severity: Linux corroboration gap, download integrity, HTML-report XSS invariant, RAM guard, triplication, canary-test gap |
 | `PROJECT_ASSESSMENT.md` | Honest strategic assessment: the tool as an idea, the new-kernel failure ceiling, Docker, a community ISF commons, whether struct-mismatch is fixable, and the verdict on continuing |
 | `SESSION_2026-07-12_VAD_DUMPER.md` | VAD memory-region dumper (`dump-vad`): dump a process's LIVE regions (heaps/mapped/injected), not just its PE; injection flagging; DFIR wiring; whole-image validation |
+| `SESSION_2026-07-12_INJECTION_CORRELATOR.md` | Fileless-injection correlator (`injection_correlator`): malfind × module-list → HIGH/MEDIUM/LOW; per-OS parsers + shared engine; standalone CLI + pipeline + report Injection tab |

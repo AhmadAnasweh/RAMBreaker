@@ -5,6 +5,15 @@ All notable changes to RAMBreaker (CresCentC) are recorded here.
 ## Unreleased
 
 ### Added
+- **Fileless-injection correlator** (`injection_correlator`): correlates the
+  injected-memory plugin (malfind) with the module-list plugin (ldrmodules /
+  proc.Maps) to flag reflective/manual code injection — HIGH (injected + loader-
+  unregistered), MEDIUM (injected alone), LOW (unregistered+unbacked exec region).
+  Per-OS parsers (Windows/Linux/macOS) → one engine; MZ/ELF/Mach-O header checks;
+  JSON preferred + raw-text fallback (incl. Vol2 malfind regrouping). Standalone
+  CLI (`--os`/`--auto`, `--injected`/`--modules`, `--pid`, `--min-confidence`,
+  `--export json|csv|both`) and a pipeline stage writing `injection_correlation.json`.
+  New **Injection** tab in all three HTML reports. Tests: +11 (`152` total).
 - **VAD memory-region dumper** (`dump-vad`, module `vad_dumper`): dump a process's
   LIVE in-memory regions — heaps, stacks, mapped data, and injected code — instead
   of just its on-disk PE (`vad_dumps/` + `vad_dump_report.txt`). Windows VAD
