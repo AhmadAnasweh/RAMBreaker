@@ -113,7 +113,7 @@ class HTMLReportGenerator:
         root_targets = {
             "system_info":     "json/system_info.json",
             "correlation":     "json/correlation_report.json",
-            "injection":       "injection_correlation.json",
+            "injection":       "json/injection_correlation.json",
             "browser":         "iocs/json/browser_history.json",
             "network_map":     "json/network_map.json",
             "registry":        "json/registry_report.json",

@@ -497,8 +497,8 @@ _MODULE_PATTERNS = {"windows": ["ldrmodules"], "linux": ["proc_Maps", "proc.maps
 
 def run_from_output_dir(output_dir, os_type: str, logger=None) -> Dict[str, Any]:
     """RAMBreaker entry point: correlate malfind vs the module-list plugin from an
-    existing json/ dir, write injection_correlation.json (+ .txt). Returns the
-    summary. Best-effort; never raises into the pipeline."""
+    existing json/ dir, write json/injection_correlation.json (+ a .txt in the run
+    root). Returns the summary. Best-effort; never raises into the pipeline."""
     try:
         from utils.json_converter import load_json_by_pattern
     except Exception:
@@ -524,7 +524,12 @@ def run_from_output_dir(output_dir, os_type: str, logger=None) -> Dict[str, Any]
     summary = summarize(findings, injected, modules, ot, len(pids))
 
     out = Path(output_dir)
-    export_json(findings, summary, out / "injection_correlation.json")
+    # JSON goes in json/ alongside every other report artifact (correlation,
+    # network_map, timeline, …); the human-readable .txt stays in the run root
+    # (matching network_map.txt / correlation_report.txt).
+    json_dir = out / "json"
+    json_dir.mkdir(parents=True, exist_ok=True)
+    export_json(findings, summary, json_dir / "injection_correlation.json")
     _write_txt(findings, summary, out / "injection_correlation.txt")
     if logger:
         b = summary["by_confidence"]

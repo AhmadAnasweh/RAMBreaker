@@ -4,6 +4,13 @@ All notable changes to RAMBreaker (CresCentC) are recorded here.
 
 ## Unreleased
 
+### Fixed
+- **Injection-correlator output location**: `injection_correlation.json` now lands
+  in `json/` alongside every other report artifact (the `.txt` stays in the run
+  root, matching `network_map`/`correlation_report`). The three `html_report.*`
+  builders now read it from `json/`, and it is added to the export pack. Previously
+  the JSON sat in the run root, inconsistent with the rest of the pipeline.
+
 ## v6.2 — 2026-07-16
 
 A capability release on top of v6.1's reliability work — three new features and

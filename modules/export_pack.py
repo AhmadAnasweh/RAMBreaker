@@ -46,6 +46,8 @@ class ExportPack:
         "process_tree.txt",
         "network_map.txt",
         "json/network_map.json",
+        "injection_correlation.txt",
+        "json/injection_correlation.json",
         "registry_report.txt",
         "json/registry_report.json",
         "iocs/browser_history.txt",
