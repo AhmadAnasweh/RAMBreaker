@@ -604,6 +604,56 @@ def _try_local_isf_build(image: str, kernel_ver: str, vol3: Path,
     return False
 
 
+def _try_btf2isf_build(image: str, vol3: Path,
+                       os_type: str = "linux") -> Optional[str]:
+    """Build an ISF straight from the BTF + kallsyms embedded IN the image.
+
+    No network, no package lookup: the type info is reconstructed from the exact
+    running kernel, so this resolves kernels that are too new for the repo, too
+    old to still be hosted, custom-compiled, or analysed offline. It only works
+    when the kernel was built with CONFIG_DEBUG_INFO_BTF (~5.8+); when there's no
+    embedded BTF it returns None so the caller falls through to the dbgsym route.
+
+    Returns the built kernel-version string (for kernel.json) on success, else
+    None. Installs the ISF into Vol3's store and refreshes its cache like the
+    other build paths; the caller still runs _verify_works_strict.
+    """
+    if os_type != "linux":
+        return None
+    try:
+        from modules import btf2isf
+    except Exception as exc:
+        msg_warn(f"btf2isf module unavailable: {exc}")
+        return None
+
+    tmp = Path(tempfile.mkdtemp(prefix="rambreaker_btf_"))
+    try:
+        msg_info("Building ISF from in-image BTF (no download, exact kernel match)...")
+        isf = btf2isf.build_isf(image, out_dir=str(tmp), verbose=True)
+    except Exception as exc:
+        msg_warn(f"BTF ISF build error: {exc}")
+        isf = None
+
+    if not isf:
+        shutil.rmtree(str(tmp), ignore_errors=True)
+        msg_info("No usable in-image BTF — falling back to the dbgsym route")
+        return None
+
+    isf_path = Path(isf)
+    msg_ok(f"ISF built from in-image BTF ({isf_path.stat().st_size / 1024 / 1024:.1f} MB)")
+    ok = _install_isf(isf_path, vol3, os_type)
+    shutil.rmtree(str(tmp), ignore_errors=True)
+    if not ok:
+        return None
+    _refresh_isf_cache_after_install(vol3, image)
+
+    # Recover the kernel version from "<Distro>_<kver>_btf.json.xz".
+    name = isf_path.name
+    if name.endswith("_btf.json.xz"):
+        name = name[:-len("_btf.json.xz")]
+    return name.split("_", 1)[1] if "_" in name else name
+
+
 def _distro_from_banner(banner: str) -> str:
     """Best-effort distro label from a Linux kernel banner string.
 
@@ -972,6 +1022,16 @@ def resolve_symbols(image: str, os_type: str = "linux",
         msg_info("   Settings → Known OS → Linux → type the build "
                  "(e.g. 'kali 6.12.13'),")
         msg_info("   or at the OS prompt choose Linux and enter the build name.")
+        # A banner cache defeats banner-matching, but the in-image BTF build
+        # ignores banners entirely (it reads VMCOREINFO + BTF directly), so it's
+        # the ideal escape here — try it before the local DWARF build.
+        if os_type != "mac":
+            btf_kver = _try_btf2isf_build(image, vol3, os_type)
+            if btf_kver and _verify_works_strict(vol3, image, os_type):
+                msg_ok("Symbol verification passed (in-image BTF build)!")
+                _write_kernel_json(output_dir, btf_kver, candidates[0][1], os_type,
+                                   _detect_arch_from_banner(candidates[0][1]))
+                return True
         # Still attempt a local DWARF build (free if dwarf2json + sources exist).
         if os_type != "mac" and _try_local_isf_build(
                 image, candidates[0][0], vol3, os_type):
@@ -1061,6 +1121,21 @@ def resolve_symbols(image: str, os_type: str = "linux",
             msg_warn("Local ISF installed but verification still failed")
         else:
             msg_info("Local DWARF build skipped (dwarf2json not found or no source files)")
+
+    # --- Fallback 1.5: build from the image's OWN embedded BTF (offline, exact) ---
+    # Runs BEFORE the multi-GB dbgsym download: when the kernel has BTF (~5.8+)
+    # this is an instant, exact-to-the-running-kernel match and needs no network,
+    # solving the "kernel not in any repo / too new / custom build" case. When
+    # there's no BTF it returns None and we fall through to the dbgsym download.
+    if os_type != "mac":
+        btf_kver = _try_btf2isf_build(image, vol3, os_type)
+        if btf_kver:
+            if _verify_works_strict(vol3, image, os_type, verify_to):
+                msg_ok("Symbol verification passed (in-image BTF build)!")
+                _write_kernel_json(output_dir, btf_kver, top_banner, os_type, top_arch)
+                return True
+            msg_warn("In-image BTF ISF installed but verification failed — "
+                     "trying dbgsym download")
 
     # --- Fallback 2: download the OFFICIAL debug package & build the ISF ---
     # Try the ranked candidates (most-likely running kernel first) so a genuine
