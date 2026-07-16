@@ -891,6 +891,21 @@ KNOWN_SYMBOL_BASE_TYPES = {
     "module_addr_min": "long unsigned int", "module_addr_max": "long unsigned int",
 }
 
+# Globals that are POINTERS to a struct (e.g. `struct kset *module_kset`).
+# object_from_symbol() needs the pointer type, not the bare struct — check_modules
+# and tty_check dereference module_kset. Value = pointed-to struct name.
+KNOWN_SYMBOL_POINTER_TYPES = {
+    "module_kset": "kset",
+}
+
+# Linker section symbols (`extern char _text[]`, …). Vol3 reads their ADDRESS via
+# object_from_symbol (module address-range checks, tty_check, etc.); dwarf2json
+# types them as a zero-length char array, so match that.
+KNOWN_SYMBOL_CHAR_ARRAYS = (
+    "_text", "_etext", "_stext", "_end", "_sdata", "_edata",
+    "__bss_start", "__init_begin", "__init_end", "__end_of_kernel_reserve",
+)
+
 
 def _bootstrap_symbols(img, vmc, phys_base, user_types, stext_va, it, syms):
     """Fallback when kallsyms can't be decoded: find just the handful of symbols
@@ -970,6 +985,14 @@ def build_symbols(img, vmc, phys_base, user_types, stext_va, base_types=None):
     for name, bt in KNOWN_SYMBOL_BASE_TYPES.items():
         if name in syms and (base_types is None or bt in base_types):
             syms[name]["type"] = {"kind": "base", "name": bt}
+    for name, tname in KNOWN_SYMBOL_POINTER_TYPES.items():
+        if name in syms and tname in user_types:
+            syms[name]["type"] = {"kind": "pointer",
+                                  "subtype": {"kind": "struct", "name": tname}}
+    for name in KNOWN_SYMBOL_CHAR_ARRAYS:
+        if name in syms:
+            syms[name]["type"] = {"kind": "array", "count": 0,
+                                  "subtype": {"kind": "base", "name": "char"}}
 
     # taint_flags: Vol3's tainting reads the in-memory taint_flag[] only if the
     # symbol is present AND typed; kallsyms gives no type/length, and a from-gap

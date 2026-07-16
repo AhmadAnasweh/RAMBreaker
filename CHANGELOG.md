@@ -5,6 +5,11 @@ All notable changes to RAMBreaker (CresCentC) are recorded here.
 ## Unreleased
 
 ### Fixed
+- **btf2isf symbol typing** (surfaced by a full `mint.lime` run): type `module_kset`
+  as a pointer-to-`kset` and the linker section symbols (`_text`/`_etext`/`_stext`/
+  `_end`/…) as zero-length char arrays (matching dwarf2json), so `check_modules`
+  and `tty_check` resolve on a BTF-built ISF instead of failing with "Symbol … has
+  no associated type". Two new typing categories in `KNOWN_SYMBOL_*`.
 - **Injection-correlator output location**: `injection_correlation.json` now lands
   in `json/` alongside every other report artifact (the `.txt` stays in the run
   root, matching `network_map`/`correlation_report`). The three `html_report.*`
