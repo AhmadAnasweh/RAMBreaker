@@ -23,6 +23,9 @@ All notable changes to RAMBreaker (CresCentC) are recorded here.
   Still runs standalone (`python3 modules/btf2isf.py <image>`). Validated
   end-to-end through the full resolver on Ubuntu 5.15.0-41, Ubuntu 6.5.0-41
   (VMware `.vmem`), and Kali 6.12.13. Linux-only by nature (macOS/XNU has no BTF).
+  Tests: +11 (`163` total) — a hand-crafted BTF blob pins the parser, anonymous-
+  member flattening, typedef-anonymous naming, and kallsyms token decode + address
+  arithmetic (no image needed).
 - **Fileless-injection correlator** (`injection_correlator`): correlates the
   injected-memory plugin (malfind) with the module-list plugin (ldrmodules /
   proc.Maps) to flag reflective/manual code injection — HIGH (injected + loader-

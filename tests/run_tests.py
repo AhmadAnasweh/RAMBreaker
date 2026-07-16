@@ -616,13 +616,107 @@ def test_injection_correlator():
     check("os alias mac->macos", ic._norm_os("mac") == "macos")
 
 
+def test_btf2isf():
+    """In-image BTF -> Vol3 ISF builder. Exercises the parser + the two subtle
+    transforms Vol3 depends on (anonymous-member flattening, typedef-anonymous
+    naming) and the kallsyms token decode + address arithmetic — all on a tiny
+    hand-crafted BTF blob, no memory image required."""
+    import struct
+    from modules import btf2isf as b
+
+    K_INT, K_STRUCT, K_TYPEDEF = 1, 4, 8
+    strs = bytearray(b"\x00")
+
+    def s(name):
+        if not name:
+            return 0
+        off = len(strs)
+        strs.extend(name.encode() + b"\x00")
+        return off
+
+    o_int, o_point, o_x, o_y = s("int"), s("point"), s("x"), s("y")
+    o_val, o_capt = s("val"), s("cap_t")
+    o_cont, o_flag, o_inner = s("container"), s("flag"), s("inner_a")
+
+    def T(name_off, kind, vlen, sz):
+        return struct.pack("<III", name_off, (kind << 24) | vlen, sz)
+
+    types = bytearray()
+    # 1: INT int (signed, 4 bytes) — extra u32 = (encoding<<24)|bits
+    types += T(o_int, K_INT, 0, 4) + struct.pack("<I", (1 << 24) | 32)
+    # 2: STRUCT point { x @bit0, y @bit32 }
+    types += T(o_point, K_STRUCT, 2, 8)
+    types += struct.pack("<III", o_x, 1, 0) + struct.pack("<III", o_y, 1, 32)
+    # 3: STRUCT (anonymous) { val } — the typedef target
+    types += T(0, K_STRUCT, 1, 8) + struct.pack("<III", o_val, 1, 0)
+    # 4: TYPEDEF cap_t -> 3
+    types += T(o_capt, K_TYPEDEF, 0, 3)
+    # 5: STRUCT (anonymous inner) { inner_a }
+    types += T(0, K_STRUCT, 1, 4) + struct.pack("<III", o_inner, 1, 0)
+    # 6: STRUCT container { <anonymous struct 5> @0, flag @bit32 }
+    types += T(o_cont, K_STRUCT, 2, 8)
+    types += struct.pack("<III", 0, 5, 0) + struct.pack("<III", o_flag, 1, 32)
+
+    hdr = struct.pack("<HBBIIIII", 0xEB9F, 1, 0, 24,
+                      0, len(types), len(types), len(strs))
+    blob = hdr + bytes(types) + bytes(strs)
+
+    base, user, enums, _ = b.build_isf_types(b.BTF(blob))
+
+    check("btf: signed int base type (size 4)",
+          base.get("int", {}).get("size") == 4 and base["int"]["signed"] is True,
+          detail=str(base.get("int")))
+    pf = user.get("point", {}).get("fields", {})
+    check("btf: struct fields at correct byte offsets (x@0, y@4)",
+          user.get("point", {}).get("size") == 8
+          and pf.get("x", {}).get("offset") == 0
+          and pf.get("y", {}).get("offset") == 4, detail=str(pf))
+    check("btf: typedef'd anonymous struct named after the typedef (cap_t)",
+          "cap_t" in user and "val" in user["cap_t"]["fields"],
+          detail=str([k for k in user])[:120])
+
+    cf = user.get("container", {}).get("fields", {})
+    anon = [k for k, v in cf.items() if v.get("anonymous")]
+    check("btf: anonymous member carries anonymous:true (Vol3 flatten flag)",
+          len(anon) == 1, detail=str(cf))
+    if anon:
+        at = cf[anon[0]]["type"]
+        check("btf: anon member points to a registered user_type",
+              at.get("kind") == "struct" and at.get("name") in user, detail=str(at))
+        check("btf: that inner type keeps its field (inner_a)",
+              "inner_a" in user.get(at.get("name"), {}).get("fields", {}))
+    check("btf: container.flag @4", cf.get("flag", {}).get("offset") == 4)
+
+    # ---- kallsyms: token decompression + base-relative address arithmetic ----
+    tokens = [bytes([i]) for i in range(256)]
+    tokens[200] = b"task"                       # a multi-character token
+    # "init_task" = nm-type char 'T' (skipped) + i n i t _ + token200("task")
+    name_ids = bytes([ord("T"), ord("i"), ord("n"), ord("i"),
+                      ord("t"), ord("_"), 200])
+    names = bytes([len(name_ids)]) + name_ids
+    rb = 0xFFFFFFFF81000000
+    d = b._decode_names_arr(struct.pack("<i", 0x234000), names, 1, rb, tokens, False)
+    check("kallsyms: multi-token name decodes to init_task", "init_task" in d,
+          detail=str(d))
+    check("kallsyms: non-percpu addr = relative_base + offset",
+          d.get("init_task") == 0xFFFFFFFF81234000,
+          detail=hex(d.get("init_task", 0)))
+    dp = b._decode_names_arr(struct.pack("<i", 0x50), names, 1, rb, tokens, True)
+    check("kallsyms: percpu positive offset is absolute",
+          dp.get("init_task") == 0x50, detail=hex(dp.get("init_task", 0)))
+    dn = b._decode_names_arr(struct.pack("<i", -0x10), names, 1, rb, tokens, True)
+    check("kallsyms: percpu negative offset = base-1-offset",
+          dn.get("init_task") == rb - 1 - (-0x10),
+          detail=hex(dn.get("init_task", 0)))
+
+
 def main():
     for t in (test_corroborate_processes, test_classify_failure,
               test_assess_fixtures, test_advisory_nonempty, test_ioc_extractor,
               test_crash_report, test_vol3_demotion, test_telemetry,
               test_html_report_xss, test_download_integrity,
               test_symbol_zip_integrity, test_vad_injection,
-              test_injection_correlator):
+              test_injection_correlator, test_btf2isf):
         try:
             t()
         except Exception as exc:  # a crashing test is a failing test
