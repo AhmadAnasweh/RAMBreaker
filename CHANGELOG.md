@@ -4,6 +4,15 @@ All notable changes to RAMBreaker (CresCentC) are recorded here.
 
 ## Unreleased
 
+## v6.2 — 2026-07-16
+
+A capability release on top of v6.1's reliability work — three new features and
+the test hook switched on. The headline is **symbol self-sufficiency**: for
+modern Linux kernels the tool can now build Volatility symbols from the BTF +
+kallsyms inside the image itself, so a kernel that is too new, custom-compiled,
+or absent from every repo still resolves — offline and exact. Plus fileless-
+injection correlation and live memory-region (VAD) dumping.
+
 ### Added
 - **In-image BTF symbol builder** (`btf2isf`): reconstructs a Volatility3 Linux
   ISF entirely from the BTF type info + kallsyms symbol table embedded **inside**
