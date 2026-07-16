@@ -23,9 +23,10 @@ All notable changes to RAMBreaker (CresCentC) are recorded here.
   Still runs standalone (`python3 modules/btf2isf.py <image>`). Validated
   end-to-end through the full resolver on Ubuntu 5.15.0-41, Ubuntu 6.5.0-41
   (VMware `.vmem`), and Kali 6.12.13. Linux-only by nature (macOS/XNU has no BTF).
-  Tests: +11 (`163` total) — a hand-crafted BTF blob pins the parser, anonymous-
+  Tests: +14 (`166` total) — a hand-crafted BTF blob pins the parser, anonymous-
   member flattening, typedef-anonymous naming, and kallsyms token decode + address
-  arithmetic (no image needed).
+  arithmetic; plus the resolver glue (`_try_btf2isf_build`): version parsed from
+  the ISF filename, no-BTF fall-through, and non-Linux short-circuit (no image).
 - **Fileless-injection correlator** (`injection_correlator`): correlates the
   injected-memory plugin (malfind) with the module-list plugin (ldrmodules /
   proc.Maps) to flag reflective/manual code injection — HIGH (injected + loader-
@@ -47,7 +48,7 @@ All notable changes to RAMBreaker (CresCentC) are recorded here.
 ### Dev
 - Enabled the git pre-commit hook in this working tree
   (`git config core.hooksPath .githooks`) and verified it fires: every commit now
-  runs Tier-A (`163`) + the canary suite (`21`) and blocks on failure. Still a
+  runs Tier-A (`166`) + the canary suite (`21`) and blocks on failure. Still a
   per-clone step — a fresh clone must run the same one-liner to turn it on.
 
 ## v6.1 — 2026-07-11

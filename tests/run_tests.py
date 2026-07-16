@@ -710,13 +710,59 @@ def test_btf2isf():
           detail=hex(dn.get("init_task", 0)))
 
 
+def test_btf2isf_resolver_glue():
+    """The _try_btf2isf_build() connector wired into the Linux resolver — no image
+    needed: stub build_isf + the Vol3 install/cache helpers and verify the glue's
+    own behavior — (a) kernel version parsed from the ISF filename, (b) a no-BTF
+    result returns None so the resolver falls through to dbgsym, (c) a non-Linux
+    OS short-circuits without ever calling the builder."""
+    import importlib.util
+    from modules import btf2isf
+
+    p = ROOT / "modules" / "linux_resolver.linux.py"
+    spec = importlib.util.spec_from_file_location("linux_resolver.linux", p)
+    lr = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(lr)
+
+    # isolate from Volatility: stub the store-install + cache-refresh
+    lr._install_isf = lambda *a, **k: True
+    lr._refresh_isf_cache_after_install = lambda *a, **k: None
+
+    saved = btf2isf.build_isf
+    try:
+        # (a) success: build_isf drops a canned ISF; glue parses kver from name
+        def fake_ok(image, out_dir=None, verbose=True):
+            f = Path(out_dir) / "Kali_6.12.13-amd64_btf.json.xz"
+            f.write_text("{}")
+            return str(f)
+        btf2isf.build_isf = fake_ok
+        kver = lr._try_btf2isf_build("/img.lime", Path("/tmp/vol3"), "linux")
+        check("glue: kernel version parsed from ISF filename",
+              kver == "6.12.13-amd64", detail=repr(kver))
+
+        # (b) no embedded BTF -> None so the resolver falls through to dbgsym
+        btf2isf.build_isf = lambda *a, **k: None
+        check("glue: no-BTF build -> None (fall-through)",
+              lr._try_btf2isf_build("/img.lime", Path("/tmp/vol3"), "linux") is None)
+
+        # (c) non-Linux OS short-circuits without ever calling the builder
+        calls = []
+        btf2isf.build_isf = lambda *a, **k: calls.append(1)
+        r = lr._try_btf2isf_build("/img.lime", Path("/tmp/vol3"), "mac")
+        check("glue: non-Linux OS -> None, builder not called",
+              r is None and not calls, detail=f"r={r} calls={len(calls)}")
+    finally:
+        btf2isf.build_isf = saved
+
+
 def main():
     for t in (test_corroborate_processes, test_classify_failure,
               test_assess_fixtures, test_advisory_nonempty, test_ioc_extractor,
               test_crash_report, test_vol3_demotion, test_telemetry,
               test_html_report_xss, test_download_integrity,
               test_symbol_zip_integrity, test_vad_injection,
-              test_injection_correlator, test_btf2isf):
+              test_injection_correlator, test_btf2isf,
+              test_btf2isf_resolver_glue):
         try:
             t()
         except Exception as exc:  # a crashing test is a failing test
