@@ -4,18 +4,6 @@ All notable changes to RAMBreaker (CresCentC) are recorded here.
 
 ## Unreleased
 
-### Fixed
-- **btf2isf symbol typing** (surfaced by a full `mint.lime` run): type `module_kset`
-  as a pointer-to-`kset` and the linker section symbols (`_text`/`_etext`/`_stext`/
-  `_end`/…) as zero-length char arrays (matching dwarf2json), so `check_modules`
-  and `tty_check` resolve on a BTF-built ISF instead of failing with "Symbol … has
-  no associated type". Two new typing categories in `KNOWN_SYMBOL_*`.
-- **Injection-correlator output location**: `injection_correlation.json` now lands
-  in `json/` alongside every other report artifact (the `.txt` stays in the run
-  root, matching `network_map`/`correlation_report`). The three `html_report.*`
-  builders now read it from `json/`, and it is added to the export pack. Previously
-  the JSON sat in the run root, inconsistent with the rest of the pipeline.
-
 ## v6.2 — 2026-07-16
 
 A capability release on top of v6.1's reliability work — three new features and
@@ -33,7 +21,9 @@ injection correlation and live memory-region (VAD) dumping.
   typedef'd anonymous structs so Vol3 extensions attach), decodes token-compressed
   kallsyms (heuristic `.rodata` scan **and** deterministic VMCOREINFO-address
   paths), converts runtime→link-time addresses, and types the well-known globals
-  Vol3 dereferences. Handles LiME and flat raw/VMware dumps (auto-detects the
+  Vol3 dereferences — structs, scalars, pointers (e.g. `module_kset`), and linker
+  char-arrays (`_text`/`_etext`/…) so lsmod/check_modules/tty_check/capabilities
+  all resolve. Handles LiME and flat raw/VMware dumps (auto-detects the
   <4 GB PCI hole) and signed/negative `phys_base`. Wired into
   `linux_resolver.resolve_symbols` as `_try_btf2isf_build()`, placed **before** the
   multi-GB dbgsym download: a kernel with BTF (~5.8+) resolves instantly, offline,
@@ -55,8 +45,9 @@ injection correlation and live memory-region (VAD) dumping.
   Per-OS parsers (Windows/Linux/macOS) → one engine; MZ/ELF/Mach-O header checks;
   JSON preferred + raw-text fallback (incl. Vol2 malfind regrouping). Standalone
   CLI (`--os`/`--auto`, `--injected`/`--modules`, `--pid`, `--min-confidence`,
-  `--export json|csv|both`) and a pipeline stage writing `injection_correlation.json`.
-  New **Injection** tab in all three HTML reports. Tests: +11 (`152` total).
+  `--export json|csv|both`) and a pipeline stage writing
+  `json/injection_correlation.json` (+ a `.txt` in the run root), wired into the
+  export pack. New **Injection** tab in all three HTML reports. Tests: +11 (`152` total).
 - **VAD memory-region dumper** (`dump-vad`, module `vad_dumper`): dump a process's
   LIVE in-memory regions — heaps, stacks, mapped data, and injected code — instead
   of just its on-disk PE (`vad_dumps/` + `vad_dump_report.txt`). Windows VAD
