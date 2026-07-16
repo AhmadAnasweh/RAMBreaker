@@ -44,6 +44,12 @@ All notable changes to RAMBreaker (CresCentC) are recorded here.
   flagged). Wired into the CLI, menu `[V]`, and DFIR/`dump-all`. Validated across
   the RAMDUMPS image set (Windows Vol2+Vol3, Linux, macOS). Tests: +8 (`141` total).
 
+### Dev
+- Enabled the git pre-commit hook in this working tree
+  (`git config core.hooksPath .githooks`) and verified it fires: every commit now
+  runs Tier-A (`163`) + the canary suite (`21`) and blocks on failure. Still a
+  per-clone step — a fresh clone must run the same one-liner to turn it on.
+
 ## v6.1 — 2026-07-11
 
 A hardening + reliability release focused on making failures **loud, diagnosable,
