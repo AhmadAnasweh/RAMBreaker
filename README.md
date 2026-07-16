@@ -15,12 +15,16 @@ Full documentation lives in [`claude context/`](<claude context>) — start with
 RAMBreaker is a **workflow layer over Volatility**, not a replacement for it — it
 drives Volatility, survives and diagnoses its failures, and correlates the output
 into one report. It works well on the common cases (Windows 10/11, common Linux
-distros with available kernel symbols). It does **not** magically support a
-brand-new kernel: if the community has no ISF and no debug package exists yet, or
-if Volatility's own plugins don't yet handle that kernel's structs, the run will
-fail — but it now fails **loudly and precisely** (symbol-missing vs
-struct-mismatch vs timeout) instead of silently producing an empty report. macOS
-is the weakest OS (Apple symbol availability). See
+distros with available kernel symbols). For modern Linux kernels (~5.8+) it can
+often build the symbols **from the image itself**: the `btf2isf` module
+reconstructs a Volatility3 ISF from the BTF + kallsyms embedded in the dump, so a
+kernel that is too new, custom-compiled, or missing from every repo still
+resolves — offline and exactly, before any debug-package download. Where that is
+not possible — a pre-BTF kernel (built without `CONFIG_DEBUG_INFO_BTF`) with no
+community ISF and no debug package, or a kernel whose structs Volatility's own
+plugins don't yet handle — the run will fail, but now **loudly and precisely**
+(symbol-missing vs struct-mismatch vs timeout) instead of silently producing an
+empty report. macOS is the weakest OS (Apple symbol availability, and no BTF). See
 [`claude context/PROJECT_ASSESSMENT.md`](<claude context/PROJECT_ASSESSMENT.md>)
 for the candid, full picture.
 

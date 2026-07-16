@@ -5,6 +5,24 @@ All notable changes to RAMBreaker (CresCentC) are recorded here.
 ## Unreleased
 
 ### Added
+- **In-image BTF symbol builder** (`btf2isf`): reconstructs a Volatility3 Linux
+  ISF entirely from the BTF type info + kallsyms symbol table embedded **inside**
+  the memory image — no matching vmlinux, debug package, or repo lookup. Pure
+  Python: parses BTF → user/base/enum types (flattening anonymous members, naming
+  typedef'd anonymous structs so Vol3 extensions attach), decodes token-compressed
+  kallsyms (heuristic `.rodata` scan **and** deterministic VMCOREINFO-address
+  paths), converts runtime→link-time addresses, and types the well-known globals
+  Vol3 dereferences. Handles LiME and flat raw/VMware dumps (auto-detects the
+  <4 GB PCI hole) and signed/negative `phys_base`. Wired into
+  `linux_resolver.resolve_symbols` as `_try_btf2isf_build()`, placed **before** the
+  multi-GB dbgsym download: a kernel with BTF (~5.8+) resolves instantly, offline,
+  and exactly — even when it is absent from every repo (too new, custom-compiled,
+  or pruned upstream) — and falls through to the dbgsym route when the kernel has
+  no BTF (`CONFIG_DEBUG_INFO_BTF` off). Also runs in the >25-banner "banner-cache"
+  bail path, where it is ideal (reads VMCOREINFO + BTF directly, ignores banners).
+  Still runs standalone (`python3 modules/btf2isf.py <image>`). Validated
+  end-to-end through the full resolver on Ubuntu 5.15.0-41, Ubuntu 6.5.0-41
+  (VMware `.vmem`), and Kali 6.12.13. Linux-only by nature (macOS/XNU has no BTF).
 - **Fileless-injection correlator** (`injection_correlator`): correlates the
   injected-memory plugin (malfind) with the module-list plugin (ldrmodules /
   proc.Maps) to flag reflective/manual code injection — HIGH (injected + loader-
