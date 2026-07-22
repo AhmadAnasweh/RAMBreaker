@@ -1,4 +1,3 @@
-<img width="1404" height="699" alt="html22" src="https://github.com/user-attachments/assets/330e66a3-611d-4aa6-970f-e860fe5f8c5b" /># RAMBreaker (v6.2)
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
