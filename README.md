@@ -1,13 +1,12 @@
-# RAMBreaker (CresCentC v6.0)
+# RAMBreaker (v6.2)
 
 A modular memory-forensics framework over **Volatility 2 / 3**: feed it a RAM
 image (`.raw`, `.mem`, `.lime`, `.dmp`, VMware `.vmem`) and it auto-detects the
 OS, drives the right Volatility engine, and produces one self-contained,
 interactive `report.html` — **Windows, Linux, and macOS**.
 
-Full documentation lives in [`claude context/`](<claude context>) — start with
-[`README.md`](<claude context/README.md>) and
-[`TOOL_OVERVIEW.md`](<claude context/TOOL_OVERVIEW.md>). Release notes are in
+Full documentation lives in [`docs/`](docs/) — start with
+[`RAMBreaker_Guide.html`](docs/RAMBreaker_Guide.html). Release notes are in
 [`CHANGELOG.md`](CHANGELOG.md).
 
 ## Scope & honest limitations
@@ -24,9 +23,7 @@ not possible — a pre-BTF kernel (built without `CONFIG_DEBUG_INFO_BTF`) with n
 community ISF and no debug package, or a kernel whose structs Volatility's own
 plugins don't yet handle — the run will fail, but now **loudly and precisely**
 (symbol-missing vs struct-mismatch vs timeout) instead of silently producing an
-empty report. macOS is the weakest OS (Apple symbol availability, and no BTF). See
-[`claude context/PROJECT_ASSESSMENT.md`](<claude context/PROJECT_ASSESSMENT.md>)
-for the candid, full picture.
+empty report. macOS is the weakest OS (Apple symbol availability, and no BTF).
 
 ## Run
 

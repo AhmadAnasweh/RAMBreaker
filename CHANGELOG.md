@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to RAMBreaker (CresCentC) are recorded here.
+All notable changes to RAMBreaker are recorded here.
 
 ## Unreleased
 
