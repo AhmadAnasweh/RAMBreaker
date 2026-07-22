@@ -8,11 +8,10 @@
 CresCentC_work/
 CresCentC_RESULTS/
 *_RESULTS/
-_isf_build/*.ddeb
-_isf_build/*.deb
-_isf_build/*.json
-_isf_build/*.json.xz
-_isf_build/tmp/
+_isf_build/
+
+# --- Internal dev/session notes, not part of the published tool ---
+claude context/
 
 # --- Memory images (never commit evidence) ---
 *.raw

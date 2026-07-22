@@ -755,6 +755,123 @@ def test_btf2isf_resolver_glue():
         btf2isf.build_isf = saved
 
 
+def test_timeline_linux_file_events():
+    """Timeline must not be empty on a healthy Linux run.
+
+    Regression for kali-linux-2026.1 (2026-07-22): 19/19 plugins OK, 358
+    processes, and **0 timeline events**. Five of the timeline's eight sources
+    (shimcache/userassist/mftscan/svcscan/evtx) are Windows-only, so on Linux the
+    only source that ever fired was pslist's CREATION TIME — and Vol3 derives
+    that from the boot time, which returns None when the kernel's timekeeping
+    symbols aren't recoverable. One upstream failure emptied the whole tab while
+    ~66k file timestamps sat unused in pagecache/lsof.
+
+    Pins that the Linux file sources work, dedup correctly, and stay OS-safe."""
+    import logging, tempfile, shutil
+    from modules.timeline import Timeline, _parse_ts
+
+    # Vol3's Linux plugins emit "...T00:18:35+00:00" (25 chars); a blind s[:23]
+    # slice left "...T00:18:35+00:" — a half-severed offset that breaks strict
+    # CSV/SIEM parsers. Must normalise, not truncate.
+    check("timeline: ISO+offset keeps whole seconds, no severed tz",
+          _parse_ts("2013-09-30T00:18:35+00:00") == "2013-09-30T00:18:35",
+          detail=repr(_parse_ts("2013-09-30T00:18:35+00:00")))
+    check("timeline: microseconds trimmed to milliseconds",
+          _parse_ts("2026-07-03T21:52:21.123456+00:00") == "2026-07-03T21:52:21.123")
+    check("timeline: Windows-style stamp unchanged",
+          _parse_ts("2026-07-03 21:52:21.000000 UTC") == "2026-07-03 21:52:21.000")
+    check("timeline: placeholder epochs still rejected",
+          _parse_ts("1970-01-01T00:00:00+00:00") is None
+          and _parse_ts("1601-01-01 00:00:00") is None)
+
+    tmp = Path(tempfile.mkdtemp())
+    jd = tmp / "json"
+    jd.mkdir()
+    try:
+        # pslist with CREATION TIME null — exactly the observed failure.
+        (jd / "linux_pslist_PsList.json").write_text(json.dumps([
+            {"COMM": "systemd", "PID": 1, "PPID": 0, "CREATION TIME": None},
+            {"COMM": "bash", "PID": 900, "PPID": 1, "CREATION TIME": None}]))
+        (jd / "linux_pagecache_Files.json").write_text(json.dumps([
+            # all three times identical -> ONE event (the _load_mft dedup rule)
+            {"FilePath": "/etc/passwd", "FileType": "REG",
+             "ModificationTime": "2026-07-03T21:52:21+00:00",
+             "AccessTime": "2026-07-03T21:52:21+00:00",
+             "ChangeTime": "2026-07-03T21:52:21+00:00"},
+            # three distinct times -> THREE events
+            {"FilePath": "/tmp/evil.sh", "FileType": "REG",
+             "ModificationTime": "2026-07-01T10:00:00+00:00",
+             "AccessTime": "2026-07-02T11:00:00+00:00",
+             "ChangeTime": "2026-07-03T12:00:00+00:00"},
+            # no path -> skipped entirely
+            {"FilePath": "", "ModificationTime": "2026-07-03T21:52:21+00:00"},
+            # epoch-0 placeholder -> filtered by _parse_ts
+            {"FilePath": "/proc/self", "ModificationTime": "1970-01-01T00:00:00+00:00"},
+        ]))
+        (jd / "linux_lsof_Lsof.json").write_text(json.dumps([
+            # socket: belongs to _load_network, must NOT become a file event
+            {"Path": "socket:[25692]", "Type": "SOCK", "PID": 1,
+             "Process": "systemd", "Accessed": "1970-01-01T00:00:00+00:00",
+             "Modified": "1970-01-01T00:00:00+00:00"},
+            # real open file, attributed to a process
+            {"Path": "/var/log/auth.log", "Type": "REG", "PID": 900,
+             "Process": "bash", "Modified": "2026-07-03T22:13:14+00:00",
+             "Accessed": "2026-07-03T22:13:14+00:00"},
+        ]))
+
+        tl = Timeline(logging.getLogger("test"))
+        n = tl.load(tmp)
+        check("timeline: Linux run is no longer empty", n > 0, detail=f"{n} events")
+
+        by_src = {}
+        for e in tl._events:
+            by_src.setdefault(e["source"], []).append(e)
+        check("timeline: pagecache contributes file events",
+              len(by_src.get("pagecache", [])) == 4,
+              detail=str(len(by_src.get("pagecache", []))))
+        check("timeline: identical A/M/C collapse to one event",
+              sum(1 for e in by_src.get("pagecache", [])
+                  if "/etc/passwd" in e["detail"]) == 1)
+        check("timeline: distinct A/M/C yield three events",
+              sum(1 for e in by_src.get("pagecache", [])
+                  if "/tmp/evil.sh" in e["detail"]) == 3)
+        check("timeline: epoch-0 file time still filtered",
+              not any("/proc/self" in e["detail"] for e in tl._events))
+        check("timeline: path-less row skipped",
+              all(e["detail"].strip() for e in tl._events))
+
+        lsof_ev = by_src.get("lsof", [])
+        check("timeline: lsof real file becomes an event", len(lsof_ev) == 1,
+              detail=str(len(lsof_ev)))
+        check("timeline: lsof file event carries PID attribution",
+              lsof_ev and lsof_ev[0]["pid"] == "900"
+              and lsof_ev[0]["process"] == "bash",
+              detail=str(lsof_ev[:1]))
+        check("timeline: lsof socket row is NOT a file event",
+              not any("socket:[" in e["detail"] for e in lsof_ev))
+        check("timeline: events sorted chronologically",
+              [e["timestamp"] for e in tl._events]
+              == sorted(e["timestamp"] for e in tl._events))
+
+        # Windows/macOS runs have no pagecache/lsof JSON — must be a clean no-op.
+        wtmp = Path(tempfile.mkdtemp())
+        (wtmp / "json").mkdir()
+        (wtmp / "json" / "mac_pslist_PsList.json").write_text(json.dumps([
+            {"NAME": "launchd", "PID": 1, "PPID": 0,
+             "Start Time": "2026-07-03 21:52:21"}]))
+        try:
+            tl2 = Timeline(logging.getLogger("test"))
+            n2 = tl2.load(wtmp)
+            check("timeline: mac pslist 'Start Time' still produces events",
+                  n2 == 1, detail=f"{n2} events")
+            check("timeline: no pagecache/lsof JSON -> loader is a safe no-op",
+                  all(e["source"] not in ("pagecache", "lsof") for e in tl2._events))
+        finally:
+            shutil.rmtree(wtmp, ignore_errors=True)
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
 def main():
     for t in (test_corroborate_processes, test_classify_failure,
               test_assess_fixtures, test_advisory_nonempty, test_ioc_extractor,
@@ -762,7 +879,7 @@ def main():
               test_html_report_xss, test_download_integrity,
               test_symbol_zip_integrity, test_vad_injection,
               test_injection_correlator, test_btf2isf,
-              test_btf2isf_resolver_glue):
+              test_btf2isf_resolver_glue, test_timeline_linux_file_events):
         try:
             t()
         except Exception as exc:  # a crashing test is a failing test

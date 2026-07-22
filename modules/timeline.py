@@ -6,7 +6,8 @@ Unified chronological view of ALL timestamped evidence:
   - Network connections (netscan + netstat + Vol2 connscan/connections)
   - ShimCache execution evidence (Vol3 + Vol2)
   - UserAssist (user-executed programs)
-  - MFT file creation/modification
+  - MFT file creation/modification            [Windows]
+  - Page-cache + lsof file times              [Linux]
   - Services
   - EVTX parsed events
 
@@ -14,6 +15,31 @@ Output:
   timeline.txt   — Human-readable with narrative context
   timeline.csv   — For spreadsheet/SIEM import
   timeline.json  — Machine-readable
+
+OS coverage note (why the Linux loaders exist)
+----------------------------------------------
+Five of this module's sources — shimcache, userassist, mftscan, svcscan, evtx —
+are Windows-only plugins. On a Linux image the ONLY source that ever produced
+events was `pslist`'s CREATION TIME, and Vol3 derives that from the boot time
+(`task.get_create_time()` -> `get_boottime()`), which returns None whenever the
+kernel's timekeeping symbols aren't recoverable. When that happens the entire
+timeline collapses to **zero events** on an otherwise perfectly healthy run —
+observed on kali-linux-2026.1 (19/19 plugins OK, 358 processes, 0 timeline
+events), while a 2026-07-06 Kali run on an older kernel produced 303.
+
+That single point of failure is the real defect: Linux images carry tens of
+thousands of file timestamps that were simply never wired up. `_load_pagecache`
+(the MFT analogue) and the file half of `_load_lsof_files` give the Linux
+timeline independent sources, so losing process times degrades it instead of
+emptying it.
+
+macOS is NOT affected the same way: `mac.pslist` reports `Start Time` from
+`proc.p_start`, an absolute wall-clock value with no boot-time dependency, and
+`_load_processes` already accepts that column. macOS has no file-time source at
+all, though — `mac.list_files` emits only (Address, File Path) and the bundled
+`mac.pagecache` only (Vnode, Path, Size, CachedPages, CachedBytes) — so its
+timeline is process/network events only, and there is nothing to wire up without
+changing a Volatility plugin.
 """
 
 import csv
@@ -25,6 +51,18 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 from utils.json_converter import load_json_by_pattern
+
+# A Linux page-cache walk yields one row per cached inode — ~35k on a 16 GB
+# desktop image, ~66k events once A/M/C times are split out. That is legitimate
+# evidence (a real filesystem timeline is large), so this cap exists only to
+# bound a pathological image (a busy server can cache an order of magnitude
+# more), NOT to trim the normal case: a cap that engages routinely would be
+# silently discarding ordinary evidence. Sized ~3x the observed desktop figure.
+# When it does engage it keeps the **most recent** events (recent filesystem
+# activity is what triage wants), logs a warning, and states the trim in the
+# timeline.txt header — never a silent drop. The complete untrimmed data always
+# remains in json/linux_pagecache_Files.json.
+MAX_FILE_EVENTS = 200000
 
 
 def _gv(item, *keys):
@@ -54,6 +92,15 @@ def _parse_ts(raw) -> Optional[str]:
     if (s.startswith("1970-") or s.startswith("0001-")
             or s.startswith("1601-") or s.startswith("1980-01-01")):
         return None
+    # Normalise an ISO-ish stamp to "YYYY-MM-DD[T ]HH:MM:SS[.mmm]".
+    # A blind s[:23] slice used to cut Vol3's Linux format
+    # "2013-09-30T00:18:35+00:00" (25 chars) down to "2013-09-30T00:18:35+00:" —
+    # a half-severed timezone offset that breaks strict CSV/SIEM parsers. Match
+    # the parts explicitly instead: keep the datetime (+ milliseconds) and drop
+    # the offset, which is always UTC in Volatility output.
+    m = re.match(r"(\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2})(\.\d+)?", s)
+    if m:
+        return m.group(1) + (m.group(2) or "")[:4]
     if re.match(r"\d{4}-\d{2}-\d{2}", s):
         return s[:23]
     for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M:%S.%f",
@@ -95,6 +142,7 @@ class Timeline:
         self.log = logger
         self._events: List[Dict[str, str]] = []
         self._cmdlines: Dict[str, str] = {}  # PID → cmdline
+        self._file_events_trimmed = 0        # set by _load_file_times' cap
 
     def load(self, output_dir: Path) -> int:
         """Load timeline events from all available JSON sources."""
@@ -105,6 +153,7 @@ class Timeline:
 
         self._events.clear()
         self._cmdlines.clear()
+        self._file_events_trimmed = 0
 
         # Pre-load cmdlines for enriching process events
         self._load_cmdlines(jd)
@@ -121,8 +170,11 @@ class Timeline:
         # === USERASSIST (user-executed programs) ===
         self._load_userassist(jd)
 
-        # === MFT (file system timestamps) ===
+        # === MFT (file system timestamps) — Windows ===
         self._load_mft(jd)
+
+        # === Page cache + lsof (file system timestamps) — Linux ===
+        self._load_file_times(jd)
 
         # === SERVICES ===
         self._load_services(jd)
@@ -283,6 +335,100 @@ class Timeline:
             remote = path_field.split("->")[1].strip() if "->" in path_field else path_field
             _add_net_event("lsof", pid, proc, file_type,
                            "", "", remote, "", "", ts)
+
+    def _load_file_times(self, jd: Path):
+        """Linux file-system timeline — the MFT analogue for Linux images.
+
+        Two independent sources, both no-ops when their JSON is absent (so this
+        is safe to call on Windows/macOS runs without any OS branching):
+
+          * ``linux.pagecache.Files`` — one row per cached inode, carrying
+            ModificationTime / AccessTime / ChangeTime. The bulk source.
+          * ``linux.lsof`` non-socket rows — fewer, but each is **attributed to a
+            PID**, which page-cache rows are not. Socket rows are skipped here:
+            they belong to ``_load_network`` and their times are epoch-0 anyway.
+
+        Timestamps are deduplicated per file exactly as ``_load_mft`` does (only
+        emit A/C when they differ from M), which on a real image roughly halves
+        the event count without losing information.
+        """
+        collected: List[Dict[str, str]] = []
+
+        # --- page cache: the bulk of a Linux filesystem timeline ---------------
+        for f in load_json_by_pattern(jd, "pagecache"):
+            path = str(_gv(f, "FilePath", "File Path", "Path", "path") or "")
+            if not path:
+                continue
+            ftype = str(_gv(f, "FileType", "Type") or "")
+            label = f"{path} [{ftype}]" if ftype else path
+
+            ts_m = _parse_ts(_gv(f, "ModificationTime", "Modified", "mtime"))
+            ts_a = _parse_ts(_gv(f, "AccessTime", "Accessed", "atime"))
+            ts_c = _parse_ts(_gv(f, "ChangeTime", "Changed", "ctime"))
+
+            if ts_m:
+                collected.append({
+                    "timestamp": ts_m, "source": "pagecache",
+                    "type": "File Modified", "detail": label,
+                    "pid": "", "process": ""})
+            if ts_a and ts_a != ts_m:
+                collected.append({
+                    "timestamp": ts_a, "source": "pagecache",
+                    "type": "File Accessed", "detail": label,
+                    "pid": "", "process": ""})
+            if ts_c and ts_c != ts_m and ts_c != ts_a:
+                collected.append({
+                    "timestamp": ts_c, "source": "pagecache",
+                    "type": "File Metadata Changed", "detail": label,
+                    "pid": "", "process": ""})
+
+        # --- lsof: the same times, but tied to the process holding the fd ------
+        for e in load_json_by_pattern(jd, "lsof"):
+            ftype = str(_gv(e, "Type", "type") or "")
+            path = str(_gv(e, "Path", "Name", "name") or "")
+            # Sockets are _load_network's job (and carry epoch-0 times).
+            if ftype.upper() in ("SOCK", "IPV4", "IPV6") or "->" in path:
+                continue
+            if not path:
+                continue
+            pid = str(_gv(e, "PID", "pid") or "")
+            proc = str(_gv(e, "Process", "COMMAND", "Command") or "")
+            detail = f"{path} [{ftype}]" if ftype else path
+            if proc:
+                detail += f" (open by {proc}"
+                detail += f" PID {pid})" if pid else ")"
+
+            ts_m = _parse_ts(_gv(e, "Modified", "modified"))
+            ts_a = _parse_ts(_gv(e, "Accessed", "accessed"))
+            ts_c = _parse_ts(_gv(e, "Changed", "changed"))
+
+            if ts_m:
+                collected.append({
+                    "timestamp": ts_m, "source": "lsof",
+                    "type": "Open File Modified", "detail": detail,
+                    "pid": pid, "process": proc})
+            if ts_a and ts_a != ts_m:
+                collected.append({
+                    "timestamp": ts_a, "source": "lsof",
+                    "type": "Open File Accessed", "detail": detail,
+                    "pid": pid, "process": proc})
+            if ts_c and ts_c != ts_m and ts_c != ts_a:
+                collected.append({
+                    "timestamp": ts_c, "source": "lsof",
+                    "type": "Open File Metadata Changed", "detail": detail,
+                    "pid": pid, "process": proc})
+
+        # Cap most-recent-first; record the trim so it is never silent.
+        if len(collected) > MAX_FILE_EVENTS:
+            collected.sort(key=lambda e: e["timestamp"], reverse=True)
+            self._file_events_trimmed = len(collected) - MAX_FILE_EVENTS
+            self.log.warning(
+                "Timeline: %d file events exceed the %d cap — keeping the most "
+                "recent %d (full data remains in json/); see timeline.txt header",
+                len(collected), MAX_FILE_EVENTS, MAX_FILE_EVENTS)
+            collected = collected[:MAX_FILE_EVENTS]
+
+        self._events.extend(collected)
 
     def _load_shimcache(self, jd: Path):
         """Load ShimCache execution evidence (Vol3 + Vol2)."""
@@ -469,6 +615,10 @@ class Timeline:
             f.write("=" * 110 + "\n")
             f.write("  EVIDENCE TIMELINE — CresCent RAM Forensics Toolkit v4.0\n")
             f.write(f"  Total events: {len(self._events)}\n")
+            if self._file_events_trimmed:
+                f.write(f"  NOTE: {self._file_events_trimmed} older file events "
+                        f"were trimmed (cap {MAX_FILE_EVENTS}, most-recent kept). "
+                        f"Full data: json/linux_pagecache_Files.json\n")
             f.write("=" * 110 + "\n\n")
 
             # Summary by source
