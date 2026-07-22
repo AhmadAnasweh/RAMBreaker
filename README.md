@@ -11,21 +11,57 @@ Full documentation lives in [`docs/`](docs/) — start with
 [`RAMBreaker_Guide.html`](docs/RAMBreaker_Guide.html). Release notes are in
 [`CHANGELOG.md`](CHANGELOG.md).
 
+## Why RAMBreaker
+
+Have you ever...
+
+- ...burned the first 30 minutes of an analysis just guessing whether an image
+  needs Volatility 2 or 3, and which OS/profile — before picking the wrong one
+  and watching every plugin silently fail?
+- ...hit a Linux memory dump whose kernel has no matching symbol file anywhere,
+  and realized building one by hand means debug packages, `dwarf2json`, and an
+  afternoon gone?
+- ...gotten a report that came back empty, with no indication of *why* — bad
+  symbols? Wrong profile? A plugin that just gave up?
+
+RAMBreaker exists to kill exactly those moments: point it at an image and it
+figures out the OS and engine itself, does everything it can to get the Linux
+kernel symbols it needs (including rebuilding them from data baked into the
+image, with no internet required), and — when something truly can't be
+resolved — tells you precisely what and why instead of handing back a
+quietly-empty report.
+
 ## Scope & honest limitations
 
-RAMBreaker is a **workflow layer over Volatility**, not a replacement for it — it
-drives Volatility, survives and diagnoses its failures, and correlates the output
-into one report. It works well on the common cases (Windows 10/11, common Linux
-distros with available kernel symbols). For modern Linux kernels (~5.8+) it can
-often build the symbols **from the image itself**: the `btf2isf` module
-reconstructs a Volatility3 ISF from the BTF + kallsyms embedded in the dump, so a
-kernel that is too new, custom-compiled, or missing from every repo still
-resolves — offline and exactly, before any debug-package download. Where that is
-not possible — a pre-BTF kernel (built without `CONFIG_DEBUG_INFO_BTF`) with no
-community ISF and no debug package, or a kernel whose structs Volatility's own
-plugins don't yet handle — the run will fail, but now **loudly and precisely**
-(symbol-missing vs struct-mismatch vs timeout) instead of silently producing an
-empty report. macOS is the weakest OS (Apple symbol availability, and no BTF).
+Volatility is the engine that actually reads memory; RAMBreaker is the layer
+that drives it, so you don't have to babysit it. In plain terms:
+
+- **Figuring out what you're looking at.** Before it can run anything,
+  RAMBreaker has to work out which OS the image is from and whether it needs
+  Volatility 2 or 3. It does this automatically, so you just point it at the
+  file.
+- **The hard part: Linux kernel symbols.** To make sense of a Linux memory
+  image, Volatility needs a "map" of that exact kernel version's internal
+  data structures (called an ISF). If that map isn't already published
+  somewhere, analysis normally can't proceed at all. RAMBreaker tries several
+  ways to get or build one automatically — including, for kernels from about
+  2020 onward, extracting that map directly from information the kernel
+  already carries inside its own memory. That means no internet connection
+  and no external package is needed for many modern Linux images.
+- **When it truly can't be done.** For a kernel old enough to lack that
+  built-in information, with no published map and no debug package
+  available anywhere — or one Volatility's own plugins simply don't
+  understand yet — the run will fail. But it fails loudly, telling you
+  exactly what went wrong (missing symbols vs. a data-structure mismatch vs.
+  a timeout), instead of quietly producing a report that looks fine but is
+  actually empty.
+- **macOS is the weakest link.** Apple systems have far fewer public symbol
+  resources to begin with, and lack the "extract the map from the image
+  itself" trick that saves the day on Linux — so macOS support depends more
+  on best-effort community data.
+
+RAMBreaker works best on the common cases: Windows 10/11, and Linux distros
+with either published or self-buildable kernel symbols.
 
 ## Run
 
