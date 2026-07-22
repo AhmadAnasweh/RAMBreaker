@@ -15,14 +15,12 @@ Full documentation lives in [`docs/`](docs/) — start with
 
 Have you ever...
 
-- ...burned the first 30 minutes of an analysis just guessing whether an image
-  needs Volatility 2 or 3, and which OS/profile — before picking the wrong one
-  and watching every plugin silently fail?
-- ...hit a Linux memory dump whose kernel has no matching symbol file anywhere,
-  and realized building one by hand means debug packages, `dwarf2json`, and an
-  afternoon gone?
-- ...gotten a report that came back empty, with no indication of *why* — bad
-  symbols? Wrong profile? A plugin that just gave up?
+Have you ever  …spent the first 30 minutes just guessing Vol2 or Vol3, Windows or Linux?
+Have you ever  …hit a Linux image whose kernel has no ISF built anywhere?
+Have you ever  …been told the DFIR report is due in two hours?
+Have you ever  …been stuck in a CTF at 3am, running plugin after plugin for one flag?
+Have you ever  …juggled a dozen tools and stitched the output together by hand?
+Have you ever  …had a tool scream 'MALWARE!' at a perfectly legit process?
 
 RAMBreaker exists to kill exactly those moments: point it at an image and it
 figures out the OS and engine itself, does everything it can to get the Linux
