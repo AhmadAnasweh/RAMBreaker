@@ -76,14 +76,7 @@ python3 crescent_toolkit.py full -i image.raw -o ./results/
 
 `-i` is the image (not `-f`). See the docs for modes, flags, and the CLI surface.
 
-## Output
 
-![Annotated output directory: plugin JSON/TXT, comms/iocs artifacts, and the final report.html](docs/output_directory_overview.png)
-
-Every run drops one results directory containing the raw plugin output (`json/`,
-`txt/`), per-category artifacts (`comms/`, `iocs/`), custom-script reports
-(`comms_report.txt`, `network_map.txt`, `timeline.csv`, etc.), and the final
-`report.html` — the single self-contained file you actually hand someone.
 
 ## Screenshots
 
@@ -130,6 +123,16 @@ graph showing `LIDSEDHX.EXE`, `TASKHOST`, and `CMD.EXE (PID 2892)` spawning
 parent-child links.
 
 ![Process graph region showing cmd.exe spawning calc.exe alongside staged processes](docs/screenshots/html5.png)
+
+## Output
+
+![Annotated output directory: plugin JSON/TXT, comms/iocs artifacts, and the final report.html](docs/output_directory_overview.png)
+
+Every run drops one results directory containing the raw plugin output (`json/`,
+`txt/`), per-category artifacts (`comms/`, `iocs/`), custom-script reports
+(`comms_report.txt`, `network_map.txt`, `timeline.csv`, etc.), and the final
+`report.html` — the single self-contained file you actually hand someone.
+
 
 ## Development
 
