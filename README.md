@@ -36,6 +36,15 @@ python3 crescent_toolkit.py full -i image.raw -o ./results/
 
 `-i` is the image (not `-f`). See the docs for modes, flags, and the CLI surface.
 
+## Output
+
+![Annotated output directory: plugin JSON/TXT, comms/iocs artifacts, and the final report.html](docs/output_directory_overview.png)
+
+Every run drops one results directory containing the raw plugin output (`json/`,
+`txt/`), per-category artifacts (`comms/`, `iocs/`), custom-script reports
+(`comms_report.txt`, `network_map.txt`, `timeline.csv`, etc.), and the final
+`report.html` — the single self-contained file you actually hand someone.
+
 ## Development
 
 After cloning, **enable the git pre-commit hook** — git does not clone hooks, so
