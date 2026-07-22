@@ -85,6 +85,52 @@ Every run drops one results directory containing the raw plugin output (`json/`,
 (`comms_report.txt`, `network_map.txt`, `timeline.csv`, etc.), and the final
 `report.html` — the single self-contained file you actually hand someone.
 
+## Screenshots
+
+The walkthrough below is a real run against a WannaCry-infected Windows XP
+image (`wcry.raw`), from the menu through to the interactive report.
+
+**Interactive main menu (v6.2)** — the command surface: analysis modes (`[C]`
+Core, `[D]` Default, `[T]` Vol-plugins only, `[F]` CresCent Eye "dump
+everything") and the full feature list (extractors, dumpers, IOC/MITRE mapping,
+timeline, and more). Volatility 3 is auto-detected at the bottom.
+
+![RAMBreaker interactive main menu showing analysis modes and the full feature list](docs/screenshots/main.png)
+
+**Live extraction** — driving Volatility 3 against `wcry.raw` (auto-profiled
+`WinXPSP2×86`, 4 parallel jobs). Step 1/8 fans out 33 plugins in parallel,
+reusing the warmed kernel-symbol cache while Vol2-exclusive network plugins run
+in the background; per-plugin completion times stream as they finish.
+
+![Live Volatility extraction: 33 plugins running in parallel with streaming completion times](docs/screenshots/processing.png)
+
+**Report — Summary + Device** — the self-contained `report.html` opening view:
+at-a-glance stat tiles (plugins, processes, psscan, network rows, malfind hits,
+services, files scanned, IOC rows) with a global search bar and tabbed
+navigation, over the parsed device fingerprint (host `INFOSECL-5A7C18`,
+Windows NT 5.2600 x86).
+
+![HTML report summary tab with stat tiles and parsed device information](docs/screenshots/report1.png)
+
+**Report — Process Tree** — interactive parent→child tree with each process
+linked back to its source plugin JSON. The WannaCry chain is visible:
+`explorer.exe → tasksche.exe → @WanaDecryptor@.exe`.
+
+![Interactive process tree showing the WannaCry explorer to tasksche to WanaDecryptor chain](docs/screenshots/html2.png)
+
+**Report — Process Graph (lineage)** — node-and-edge view tracing
+`EXPLORER.EXE → TASKSCHE.EXE` with the malicious `@WANADECRYPTOR@` node
+highlighted, each card showing PID/PPID, image path, and backing plugin sources.
+
+![Process graph highlighting the WanaDecryptor node in the explorer to tasksche lineage](docs/screenshots/html3.png)
+
+**Report — Process Graph (injected/staged processes)** — a second region of the
+graph showing `LIDSEDHX.EXE`, `TASKHOST`, and `CMD.EXE (PID 2892)` spawning
+`CALC.EXE` — a classic hollowing/injection decoy pattern surfaced with full
+parent-child links.
+
+![Process graph region showing cmd.exe spawning calc.exe alongside staged processes](docs/screenshots/html5.png)
+
 ## Development
 
 After cloning, **enable the git pre-commit hook** — git does not clone hooks, so
