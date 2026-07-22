@@ -1,5 +1,7 @@
 # RAMBreaker (v6.2)
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
 A modular memory-forensics framework over **Volatility 2 / 3**: feed it a RAM
 image (`.raw`, `.mem`, `.lime`, `.dmp`, VMware `.vmem`) and it auto-detects the
 OS, drives the right Volatility engine, and produces one self-contained,
