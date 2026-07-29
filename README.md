@@ -155,6 +155,8 @@ Bypass the hook in a genuine emergency with `git commit --no-verify`.
 Toolchain version pins (Volatility, dwarf2json, Python) are recorded in
 [`TOOLCHAIN.lock.md`](TOOLCHAIN.lock.md).
 
+WARNING ⚠️ : the tool was only tested inside linux environment.
+
 ## License
 
 [MIT](LICENSE) — use it, fork it, build on it. It drives Volatility 2/3 and
