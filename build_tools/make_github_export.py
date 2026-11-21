@@ -38,6 +38,7 @@ INCLUDE = (
     "build_tools/report_check.py", "build_tools/compare_case.py",
     "build_tools/e2e_queue.py", "build_tools/run_sample.ps1",
     "build_tools/run_detached.ps1", "build_tools/make_github_export.py",
+    "build_tools/make_manual_shots.py",
 )
 
 PUBLIC_GITIGNORE = """\

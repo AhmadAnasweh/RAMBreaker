@@ -11,6 +11,9 @@ Nothing is ever uploaded. Network access is optional: it is only used to fetch
 symbol tables for unknown kernels. Offline, the bundled symbols, the BTF
 reconstruction, and Volatility 2 profiles still work.
 
+- **Manual with screenshots of every screen:** https://ahmad.anasweh.com/#/notes/rambreaker
+- **Download:** [latest release](https://github.com/AhmadAnasweh/RAMBreaker/releases/latest)
+
 ## Using it
 
 1. Double-click `RAMBreaker.exe`. A guided tour runs on first start.
