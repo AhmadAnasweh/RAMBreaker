@@ -1,0 +1,22 @@
+{
+  "yaraforge_core": {
+    "fetched_epoch": 1794117666,
+    "entries": 5132,
+    "note": "bundled with RAMBreaker 2.2, fetched 2026-11-08 (YARA Forge release 20261108)"
+  },
+  "yaraforge_extended": {
+    "fetched_epoch": 1794117666,
+    "entries": 10886,
+    "note": "bundled with RAMBreaker 2.2, fetched 2026-11-08 (YARA Forge release 20261108)"
+  },
+  "ipsum": {
+    "fetched_epoch": 1794691452.9305372,
+    "entries": 39541,
+    "note": "bundled with RAMBreaker 2.2, fetched 2026-11-15"
+  },
+  "feodo": {
+    "fetched_epoch": 1794691452.9305372,
+    "entries": 1,
+    "note": "bundled with RAMBreaker 2.2, fetched 2026-11-15"
+  }
+}

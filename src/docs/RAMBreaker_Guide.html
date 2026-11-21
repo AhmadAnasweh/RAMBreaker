@@ -1,0 +1,599 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>RAMBreaker — The Illustrated Guide</title>
+</head>
+<body>
+<title>RAMBreaker — The Illustrated Guide</title>
+<style>
+  :root{
+    /* light — cool blueprint paper */
+    --bg:#eaeef4; --bg2:#f6f8fb; --panel:#ffffff; --sunken:#e0e6ef;
+    --ink:#16202e; --ink2:#3f4f63; --muted:#71829a; --line:#cdd7e6;
+    --accent:#c9760a; --accent2:#e0900f; --steel:#227c94;
+    --good:#2b9668; --warn:#bd8418; --crit:#c9463c;
+    --grid:rgba(34,124,148,.10); --shadow:0 1px 2px rgba(16,32,46,.06),0 10px 30px rgba(16,32,46,.07);
+  }
+  @media (prefers-color-scheme:dark){ :root:not([data-theme="light"]){
+    --bg:#0b1220; --bg2:#0e1626; --panel:#131d2e; --sunken:#0c1420;
+    --ink:#e4ebf5; --ink2:#aebdd2; --muted:#6f8199; --line:#233349;
+    --accent:#f5a623; --accent2:#ffbd4d; --steel:#5bb0c9;
+    --good:#3fb27f; --warn:#e0a63c; --crit:#e0574e;
+    --grid:rgba(91,176,201,.10); --shadow:0 1px 2px rgba(0,0,0,.4),0 14px 40px rgba(0,0,0,.35);
+  }}
+  :root[data-theme="dark"]{
+    --bg:#0b1220; --bg2:#0e1626; --panel:#131d2e; --sunken:#0c1420;
+    --ink:#e4ebf5; --ink2:#aebdd2; --muted:#6f8199; --line:#233349;
+    --accent:#f5a623; --accent2:#ffbd4d; --steel:#5bb0c9;
+    --good:#3fb27f; --warn:#e0a63c; --crit:#e0574e;
+    --grid:rgba(91,176,201,.10); --shadow:0 1px 2px rgba(0,0,0,.4),0 14px 40px rgba(0,0,0,.35);
+  }
+
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  @media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font-family:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    font-size:16px;line-height:1.6;-webkit-font-smoothing:antialiased}
+  :root{--mono:ui-monospace,"Cascadia Code","JetBrains Mono","SF Mono",Menlo,Consolas,monospace}
+
+  .wrap{max-width:1080px;margin:0 auto;padding:0 24px}
+  a{color:var(--steel);text-underline-offset:3px}
+  h1,h2,h3,h4{text-wrap:balance;line-height:1.15;margin:0}
+  p{margin:0}
+  :focus-visible{outline:2px solid var(--accent);outline-offset:3px;border-radius:4px}
+
+  .eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:.22em;
+    text-transform:uppercase;color:var(--accent);font-weight:600}
+  .lede{font-size:18px;color:var(--ink2);max-width:64ch}
+
+  /* ---------- hero / title block ---------- */
+  .hero{position:relative;overflow:hidden;border-bottom:1px solid var(--line);
+    background:
+      linear-gradient(var(--grid) 1px,transparent 1px) 0 0/34px 34px,
+      linear-gradient(90deg,var(--grid) 1px,transparent 1px) 0 0/34px 34px,
+      radial-gradient(1200px 400px at 78% -10%, color-mix(in srgb,var(--steel) 16%,transparent), transparent 60%),
+      var(--bg2)}
+  .hero-inner{padding:64px 24px 52px;max-width:1080px;margin:0 auto}
+  .titleblock{border:1px solid var(--line);background:color-mix(in srgb,var(--panel) 86%,transparent);
+    backdrop-filter:blur(2px);border-radius:14px;box-shadow:var(--shadow);overflow:hidden}
+  .tb-top{display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;
+    padding:12px 18px;border-bottom:1px solid var(--line);background:var(--sunken);
+    font-family:var(--mono);font-size:12px;color:var(--muted);letter-spacing:.08em}
+  .tb-top b{color:var(--ink2);font-weight:600}
+  .tb-main{padding:30px 26px 26px}
+  .brand{font-size:clamp(40px,7vw,74px);font-weight:800;letter-spacing:-.02em;line-height:1}
+  .brand .k{color:var(--accent)}
+  .brand-sub{margin-top:14px;font-size:clamp(16px,2.4vw,20px);color:var(--ink2);max-width:60ch}
+  .chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:22px}
+  .chip{font-family:var(--mono);font-size:12.5px;padding:5px 11px;border-radius:999px;
+    border:1px solid var(--line);background:var(--panel);color:var(--ink2);white-space:nowrap}
+  .chip.hot{border-color:color-mix(in srgb,var(--accent) 50%,var(--line));color:var(--accent);
+    background:color-mix(in srgb,var(--accent) 10%,transparent)}
+  .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;margin-top:26px;
+    background:var(--line);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+  .stat{background:var(--panel);padding:16px 18px}
+  .stat .n{font-size:26px;font-weight:800;font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+  .stat .l{font-family:var(--mono);font-size:11px;text-transform:uppercase;letter-spacing:.12em;
+    color:var(--muted);margin-top:4px}
+  @media (max-width:640px){.stats{grid-template-columns:repeat(2,1fr)}}
+
+  /* ---------- sections ---------- */
+  section{padding:56px 0}
+  section.tint{background:var(--bg2);border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+  .shead{display:flex;align-items:baseline;gap:14px;margin-bottom:8px}
+  .shead .no{font-family:var(--mono);font-size:13px;color:var(--steel);font-weight:600}
+  h2{font-size:clamp(24px,3.4vw,34px);font-weight:800;letter-spacing:-.015em}
+  .sintro{margin:14px 0 30px;max-width:66ch;color:var(--ink2)}
+
+  /* ---------- scope callout ---------- */
+  .scope{display:flex;gap:16px;align-items:flex-start;border:1px solid var(--line);
+    border-left:4px solid var(--steel);background:var(--panel);border-radius:12px;padding:18px 20px;box-shadow:var(--shadow)}
+  .scope .ic{font-size:20px;line-height:1.4}
+  .scope h3{font-size:15px;font-family:var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--ink)}
+  .scope p{margin-top:6px;color:var(--ink2);font-size:15px}
+
+  /* ---------- generic feature grid ---------- */
+  .grid{display:grid;gap:14px}
+  .g2{grid-template-columns:repeat(2,1fr)} .g3{grid-template-columns:repeat(3,1fr)}
+  @media (max-width:820px){.g2,.g3{grid-template-columns:1fr}}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:18px 18px;box-shadow:var(--shadow)}
+  .card h4{font-size:16px;margin-bottom:6px}
+  .card p{color:var(--ink2);font-size:14.5px}
+  .card .ic{font-family:var(--mono);color:var(--accent);font-weight:700;font-size:13px}
+
+  /* ---------- PIPELINE flow ---------- */
+  .flow{display:flex;flex-direction:column;align-items:stretch;gap:0;margin-top:8px}
+  .fnode{display:flex;gap:16px;align-items:stretch;background:var(--panel);border:1px solid var(--line);
+    border-radius:12px;padding:14px 16px;box-shadow:var(--shadow)}
+  .fnode .fnum{font-family:var(--mono);font-size:12px;font-weight:700;color:var(--steel);
+    min-width:26px;padding-top:2px;font-variant-numeric:tabular-nums}
+  .fnode h4{font-size:16px}
+  .fnode .fmod{font-family:var(--mono);font-size:12.5px;color:var(--muted);margin-top:3px}
+  .fnode .out{margin-left:auto;align-self:center;font-family:var(--mono);font-size:11.5px;
+    color:var(--accent);border:1px dashed color-mix(in srgb,var(--accent) 45%,var(--line));
+    padding:5px 9px;border-radius:8px;white-space:nowrap}
+  .farrow{width:2px;height:22px;background:linear-gradient(var(--steel),var(--line));margin:0 auto;position:relative}
+  .farrow::after{content:"";position:absolute;left:50%;bottom:-1px;transform:translateX(-50%);
+    border-left:5px solid transparent;border-right:5px solid transparent;border-top:6px solid var(--steel)}
+  .fnode.hot{border-color:color-mix(in srgb,var(--accent) 45%,var(--line));
+    background:linear-gradient(color-mix(in srgb,var(--accent) 7%,var(--panel)),var(--panel))}
+  .fsub{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0 0 42px}
+  .fsub .chip{background:var(--sunken)}
+  @media (max-width:560px){.fnode .out{display:none}}
+
+  /* ---------- module map ---------- */
+  .clusters{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+  @media (max-width:900px){.clusters{grid-template-columns:1fr}}
+  .cluster{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px;box-shadow:var(--shadow)}
+  .cluster h4{font-family:var(--mono);font-size:12px;letter-spacing:.1em;text-transform:uppercase;
+    color:var(--steel);margin-bottom:12px;display:flex;align-items:center;gap:8px}
+  .cluster h4::before{content:"";width:8px;height:8px;border-radius:2px;background:var(--steel)}
+  .mchips{display:flex;flex-wrap:wrap;gap:7px}
+  .m{font-family:var(--mono);font-size:12px;padding:4px 9px;border-radius:7px;background:var(--sunken);
+    border:1px solid var(--line);color:var(--ink2)}
+  .m.key{color:var(--accent);border-color:color-mix(in srgb,var(--accent) 40%,var(--line))}
+
+  /* ---------- dispatcher ---------- */
+  .disp{display:grid;grid-template-columns:1fr;gap:0;justify-items:center;margin-top:8px}
+  .disp .top{font-family:var(--mono);font-size:13px;background:var(--panel);border:1px solid var(--line);
+    border-radius:10px;padding:12px 16px;box-shadow:var(--shadow);text-align:center}
+  .disp .top b{color:var(--accent)}
+  .fan{width:2px;height:22px;background:var(--line)}
+  .three{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;width:100%;margin-top:2px}
+  @media (max-width:640px){.three{grid-template-columns:1fr}}
+  .osbox{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px;text-align:center;box-shadow:var(--shadow)}
+  .osbox .os{font-weight:800;font-size:15px}
+  .osbox .osf{font-family:var(--mono);font-size:11.5px;color:var(--muted);margin-top:4px}
+  .osbox.w{border-top:3px solid #4c8bf0} .osbox.l{border-top:3px solid var(--good)} .osbox.m{border-top:3px solid var(--muted)}
+
+  /* ---------- provenance ---------- */
+  .prov{display:grid;grid-template-columns:1fr auto 1fr auto 1fr;gap:12px;align-items:center}
+  @media (max-width:820px){.prov{grid-template-columns:1fr;text-align:center}.prov .pa{transform:rotate(90deg)}}
+  .pbox{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px;box-shadow:var(--shadow)}
+  .pbox.hub{border-color:color-mix(in srgb,var(--accent) 45%,var(--line));
+    background:linear-gradient(color-mix(in srgb,var(--accent) 8%,var(--panel)),var(--panel))}
+  .pbox h4{font-family:var(--mono);font-size:13px;margin-bottom:8px}
+  .pbox .li{font-size:13.5px;color:var(--ink2);display:flex;gap:7px;align-items:baseline}
+  .pbox .li::before{content:"▸";color:var(--steel);font-size:11px}
+  .pa{font-size:22px;color:var(--accent);text-align:center}
+
+  /* ---------- health status ---------- */
+  .status3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+  @media (max-width:820px){.status3{grid-template-columns:1fr}}
+  .st{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px 18px;box-shadow:var(--shadow);
+    border-top:4px solid var(--c)}
+  .st.good{--c:var(--good)} .st.warn{--c:var(--warn)} .st.crit{--c:var(--crit)}
+  .st .tag{font-family:var(--mono);font-size:12px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--c)}
+  .st h4{margin:6px 0 6px;font-size:17px}
+  .st p{font-size:14px;color:var(--ink2)}
+
+  /* ---------- ISF ladder ---------- */
+  .ladder{display:flex;flex-direction:column;gap:10px}
+  .rung{display:flex;gap:14px;align-items:flex-start;background:var(--panel);border:1px solid var(--line);
+    border-radius:11px;padding:14px 16px;box-shadow:var(--shadow)}
+  .rung .rn{font-family:var(--mono);font-weight:800;color:var(--panel);background:var(--steel);
+    min-width:28px;height:28px;border-radius:8px;display:grid;place-items:center;font-size:13px}
+  .rung h4{font-size:15px} .rung p{font-size:13.5px;color:var(--ink2);margin-top:3px}
+  .rung.fail{border-color:color-mix(in srgb,var(--crit) 45%,var(--line))}
+  .rung.fail .rn{background:var(--crit)}
+
+  /* ---------- tabs grid ---------- */
+  .tabs{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+  @media (max-width:900px){.tabs{grid-template-columns:repeat(2,1fr)}}
+  @media (max-width:520px){.tabs{grid-template-columns:1fr}}
+  .tab{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px 13px;box-shadow:var(--shadow)}
+  .tab .tn{font-family:var(--mono);font-size:11px;color:var(--accent);font-weight:700}
+  .tab h4{font-size:14.5px;margin:2px 0 3px} .tab p{font-size:12.5px;color:var(--muted)}
+
+  /* ---------- module reference ---------- */
+  .mods{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
+  @media (max-width:820px){.mods{grid-template-columns:1fr}}
+  .modc{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:15px 16px;box-shadow:var(--shadow)}
+  .modc .mn{font-family:var(--mono);font-weight:700;font-size:14px;color:var(--ink)}
+  .modc .row{display:flex;gap:9px;margin-top:8px;font-size:13px;align-items:baseline}
+  .modc .row .k{font-family:var(--mono);font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;
+    color:var(--muted);min-width:46px;padding-top:1px}
+  .modc .row .v{color:var(--ink2)}
+  .modc .row .v code{font-family:var(--mono);font-size:12px;background:var(--sunken);padding:1px 5px;border-radius:5px}
+
+  code{font-family:var(--mono)}
+  .codeblock{background:var(--sunken);border:1px solid var(--line);border-radius:10px;padding:14px 16px;
+    font-family:var(--mono);font-size:13px;color:var(--ink);overflow-x:auto;white-space:pre}
+
+  /* ---------- footer ---------- */
+  footer{border-top:1px solid var(--line);background:var(--bg2);padding:40px 0 56px}
+  footer p{color:var(--muted);font-size:13.5px;max-width:70ch}
+  .foot-brand{font-weight:800;font-size:18px;color:var(--ink)}
+  .foot-brand .k{color:var(--accent)}
+</style>
+
+<div class="hero">
+  <div class="hero-inner">
+    <div class="titleblock">
+      <div class="tb-top">
+        <span>DOC&nbsp;/&nbsp;<b>ILLUSTRATED&nbsp;GUIDE</b></span>
+        <span>REV&nbsp;<b>v6.2</b>&nbsp;·&nbsp;MEMORY-FORENSICS FRAMEWORK</span>
+        <span>ENGINE&nbsp;<b>VOLATILITY&nbsp;2/3</b></span>
+      </div>
+      <div class="tb-main">
+        <p class="eyebrow">Image → Investigation, in one command</p>
+        <h1 class="brand">RAM<span class="k">Breaker</span></h1>
+        <p class="brand-sub">A cross-OS memory-forensics framework: auto-detect the OS, drive
+          Volatility, recover the kernel symbols, correlate everything, and produce one
+          interactive report — for Windows, Linux, and macOS.</p>
+        <div class="chips">
+          <span class="chip hot">Windows · Linux · macOS</span>
+          <span class="chip">Volatility 2 / 3</span>
+          <span class="chip">Parallel extraction</span>
+          <span class="chip">Auto ISF symbols</span>
+          <span class="chip">Evidence, not verdicts</span>
+          <span class="chip">Python · MIT</span>
+        </div>
+        <div class="stats">
+          <div class="stat"><div class="n">1</div><div class="l">command</div></div>
+          <div class="stat"><div class="n">3</div><div class="l">operating systems</div></div>
+          <div class="stat"><div class="n">9–48</div><div class="l">plugins / run</div></div>
+          <div class="stat"><div class="n">187</div><div class="l">tests, green</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<main>
+
+<section>
+  <div class="wrap">
+    <div class="scope">
+      <span class="ic">🎯</span>
+      <div>
+        <h3>Scope</h3>
+        <p>RAMBreaker is a workflow and correlation layer over Volatility — built to make the
+          common investigations fast and the output shareable and defensible. It takes you from a
+          memory image to a full report in one command on the everyday cases (Windows, common
+          Linux distributions, macOS), and it is precise about exactly what it recovered on every
+          run. When a target is a brand-new or unusual kernel, RAMBreaker's diagnostics tell you
+          precisely what's needed — it never hands you a silent, empty report.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="tint">
+  <div class="wrap">
+    <div class="shead"><span class="no">01</span><h2>What it is</h2></div>
+    <p class="sintro">You give RAMBreaker a memory image. It figures out the operating system,
+      picks the right Volatility engine, recovers the kernel symbols, runs a full plugin battery
+      in parallel, mines the strings for artifacts, rebuilds the process and network picture,
+      correlates it all, and writes a single self-contained HTML report. Every number in that
+      report traces back to a raw Volatility plugin whose JSON is saved alongside — the report is
+      for reading the story, the JSON is for proving it.</p>
+    <div class="grid g3">
+      <div class="card"><div class="ic">01 · DRIVE</div><h4>Auto-detect &amp; extract</h4>
+        <p>Detects OS + engine + profile, then runs 9–48 plugins across a thread pool with an
+          adaptive RAM guard.</p></div>
+      <div class="card"><div class="ic">02 · RECOVER</div><h4>Kernel symbols</h4>
+        <p>For Linux/macOS: download the matching ISF, patch a near-match to the kernel banner, rebuild
+          it from the BTF inside the image itself, or build one from the distro's debug package —
+          verifying each against the dump.</p></div>
+      <div class="card"><div class="ic">03 · CORRELATE</div><h4>One story per process</h4>
+        <p>Stitches process ↔ network ↔ command line ↔ modules ↔ hashes into a single narrative,
+          not six disconnected tables.</p></div>
+      <div class="card"><div class="ic">04 · MINE</div><h4>Strings → artifacts</h4>
+        <p>A single pass over the strings extracts IOCs, browser history, and chat-app traces with
+          low false-positive rates.</p></div>
+      <div class="card"><div class="ic">05 · DIAGNOSE</div><h4>Loud, never silent</h4>
+        <p>Catches Volatility's silent failures, corroborates the process list, and writes a
+          precise, scrubbed fingerprint of exactly what broke.</p></div>
+      <div class="card"><div class="ic">06 · REPORT</div><h4>One offline report</h4>
+        <p>A self-contained <code>report.html</code>: 13 tabs, global search, opens offline with
+          nothing to install.</p></div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="shead"><span class="no">02</span><h2>The pipeline, end to end</h2></div>
+    <p class="sintro">One command runs this sequence. The key architectural idea: the
+      <code>json/</code> directory is the hub — Volatility writes it once, and every downstream
+      analysis stage reads from it, which is why analysis, correlation, and reporting are fast and
+      independently re-runnable.</p>
+    <div class="flow">
+      <div class="fnode"><span class="fnum">00</span><div class="fbody"><h4>Memory image</h4>
+        <p class="fmod">.raw · .lime · .mem · .vmem · .dmp</p></div>
+        <span class="out">input</span></div>
+      <div class="farrow"></div>
+      <div class="fnode"><span class="fnum">01</span><div class="fbody"><h4>OS &amp; engine detection</h4>
+        <p class="fmod">volatility.py — raw-byte pre-check → banners → windows.info → imageinfo → raw scan</p></div>
+        <span class="out">Vol3 / Vol2 · profile</span></div>
+      <div class="farrow"></div>
+      <div class="fnode"><span class="fnum">02</span><div class="fbody"><h4>Symbol resolution <span style="color:var(--muted);font-weight:400;font-size:13px">(Linux / macOS)</span></h4>
+        <p class="fmod">linux_resolver · dbgsym_builder · linux_identify</p></div>
+        <span class="out">json/linux_kernel.json</span></div>
+      <div class="farrow"></div>
+      <div class="fnode hot"><span class="fnum">03</span><div class="fbody"><h4>Volatility extraction — parallel</h4>
+        <p class="fmod">extractor.{windows,linux,mac}.py — thread pool + demotion + sidecars</p></div>
+        <span class="out">json/ · txt/</span></div>
+      <div class="farrow"></div>
+      <div class="fnode"><span class="fnum">04</span><div class="fbody"><h4>Analysis fan-out</h4>
+        <p class="fmod">reads json/ — runs in one pass</p></div>
+        <span class="out">reports</span></div>
+      <div class="fsub">
+        <span class="chip">strings → IOC / browser / comms</span>
+        <span class="chip">process tree</span>
+        <span class="chip">network map</span>
+        <span class="chip">suspicious + command + MITRE</span>
+        <span class="chip">popular files · scheduled tasks · registry</span>
+      </div>
+      <div class="farrow"></div>
+      <div class="fnode"><span class="fnum">05</span><div class="fbody"><h4>Correlate + timeline</h4>
+        <p class="fmod">correlator.py · timeline.py</p></div>
+        <span class="out">correlation_report.txt</span></div>
+      <div class="farrow"></div>
+      <div class="fnode hot"><span class="fnum">06</span><div class="fbody"><h4>Run-health + fingerprint</h4>
+        <p class="fmod">run_health.py · crash_report.py</p></div>
+        <span class="out">run_health.json</span></div>
+      <div class="farrow"></div>
+      <div class="fnode"><span class="fnum">07</span><div class="fbody"><h4>Report + exports</h4>
+        <p class="fmod">html_report.{os}.py · export_pack · elk_export</p></div>
+        <span class="out">report.html</span></div>
+    </div>
+  </div>
+</section>
+
+<section class="tint">
+  <div class="wrap">
+    <div class="shead"><span class="no">03</span><h2>The module map</h2></div>
+    <p class="sintro">69 module files, grouped by role. <code>crescent_toolkit.py</code> is
+      the only orchestrator; everything else is a focused unit it wires into the pipeline.
+      <span style="color:var(--accent)">Amber</span> marks the load-bearing pieces.</p>
+    <div class="clusters">
+      <div class="cluster"><h4>Orchestration</h4><div class="mchips">
+        <span class="m key">crescent_toolkit</span><span class="m">workspace</span>
+        <span class="m">logger</span><span class="m">utils/ui</span><span class="m">json_converter</span></div></div>
+      <div class="cluster"><h4>Volatility engine</h4><div class="mchips">
+        <span class="m key">volatility</span><span class="m key">extractor.win/linux/mac</span></div></div>
+      <div class="cluster"><h4>Symbol pipeline</h4><div class="mchips">
+        <span class="m key">linux_resolver</span><span class="m">linux_identify</span>
+        <span class="m">dbgsym_builder</span><span class="m key">btf2isf</span><span class="m">installer</span></div></div>
+      <div class="cluster"><h4>Core analysis</h4><div class="mchips">
+        <span class="m">system_info</span><span class="m">process_tree</span><span class="m">network_map</span>
+        <span class="m key">correlator</span><span class="m">process_dumper</span><span class="m">file_dumper</span>
+        <span class="m">auto_hash</span><span class="m">yara_scanner</span><span class="m">vad_dumper</span><span class="m">injection_correlator</span></div></div>
+      <div class="cluster"><h4>Strings &amp; artifacts</h4><div class="mchips">
+        <span class="m">strings_extractor</span><span class="m key">ioc_extractor</span>
+        <span class="m">browser_history</span><span class="m">comms_scanner</span>
+        <span class="m">string_hunt</span><span class="m">memory_grep</span></div></div>
+      <div class="cluster"><h4>Command / persistence</h4><div class="mchips">
+        <span class="m">cmd_analyzer</span><span class="m">scheduled_tasks</span>
+        <span class="m">registry_explorer</span><span class="m">registry_altered</span>
+        <span class="m">popular_files</span><span class="m">evtx_parser</span></div></div>
+      <div class="cluster"><h4>Health &amp; reporting</h4><div class="mchips">
+        <span class="m key">run_health</span><span class="m key">crash_report</span>
+        <span class="m">timeline</span><span class="m key">html_report</span>
+        <span class="m">export_pack</span><span class="m">elk_export</span></div></div>
+      <div class="cluster"><h4>Bundled Vol3 plugins</h4><div class="mchips">
+        <span class="m">mac.pagecache</span><span class="m">mac.list_files</span></div></div>
+      <div class="cluster"><h4>Quality</h4><div class="mchips">
+        <span class="m">tests/run_tests</span><span class="m key">tests/run_canary</span>
+        <span class="m">.githooks/pre-commit</span></div></div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="shead"><span class="no">04</span><h2>OS-split dispatcher</h2></div>
+    <p class="sintro">Every multi-OS module is one thin loader that imports the right
+      implementation for the detected OS. Calling code imports the plain name and never changes.</p>
+    <div class="disp">
+      <div class="top">from modules.extractor import <b>Extractor</b></div>
+      <div class="fan"></div>
+      <div class="top" style="color:var(--muted)">extractor.py &nbsp;·&nbsp; importlib loader</div>
+      <div class="fan"></div>
+      <div class="three">
+        <div class="osbox w"><div class="os">Windows</div><div class="osf">extractor.windows.py<br>Vol2 profiles · targeted printkey</div></div>
+        <div class="osbox l"><div class="os">Linux</div><div class="osf">extractor.linux.py<br>psscan · dbgsym build</div></div>
+        <div class="osbox m"><div class="os">macOS</div><div class="osf">extractor.mac.py<br>bundled mac.* plugins</div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="tint">
+  <div class="wrap">
+    <div class="shead"><span class="no">05</span><h2>Where the data comes from</h2></div>
+    <p class="sintro">Only extraction reads the image; everything else reads <code>json/</code>.
+      Follow one fact — "PID 1337 <code>evil.exe</code> talked to 203.0.113.45:443, launched with
+      an encoded command" — and every piece has a named source.</p>
+    <div class="prov">
+      <div class="pbox"><h4>MEMORY IMAGE</h4>
+        <div class="li">pslist → PID, name, parent</div>
+        <div class="li">netscan → connection</div>
+        <div class="li">cmdline → command line</div></div>
+      <div class="pa">→</div>
+      <div class="pbox hub"><h4>json/ &nbsp;(source of truth)</h4>
+        <div class="li">windows_pslist_PsList.json</div>
+        <div class="li">windows_netscan_NetScan.json</div>
+        <div class="li">windows_cmdline_CmdLine.json</div></div>
+      <div class="pa">→</div>
+      <div class="pbox"><h4>CORRELATED → report.html</h4>
+        <div class="li">joined by PID 1337</div>
+        <div class="li">parent · cmd · net together</div>
+        <div class="li">markers: encoded PowerShell</div></div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="shead"><span class="no">06</span><h2>Module reference</h2></div>
+    <p class="sintro">For the load-bearing modules: what each does, where its data comes from, and
+      what it writes.</p>
+    <div class="mods">
+      <div class="modc"><div class="mn">volatility.py</div>
+        <div class="row"><span class="k">reads</span><span class="v">the image</span></div>
+        <div class="row"><span class="k">does</span><span class="v">discovers Vol2/Vol3, detects OS/engine/profile, and <code>run_plugin()</code> — the subprocess plus the success decision that demotes silent failures</span></div>
+        <div class="row"><span class="k">writes</span><span class="v"><code>json/&lt;plugin&gt;.json</code> (+ <code>.error</code> sidecar)</span></div></div>
+      <div class="modc"><div class="mn">extractor.{os}.py</div>
+        <div class="row"><span class="k">reads</span><span class="v">image · mode</span></div>
+        <div class="row"><span class="k">does</span><span class="v">picks the plugin list, sizes parallel jobs to free RAM, runs the thread pool, resumes intelligently, and triggers health + fingerprint</span></div>
+        <div class="row"><span class="k">writes</span><span class="v"><code>json/</code> · <code>txt/</code> · <code>SUMMARY.txt</code></span></div></div>
+      <div class="modc"><div class="mn">linux_resolver.{linux,mac}.py</div>
+        <div class="row"><span class="k">reads</span><span class="v">the image (banners)</span></div>
+        <div class="row"><span class="k">does</span><span class="v">acquires the ISF — installed → community repo → banner-patch → local DWARF build → in-image BTF build (v6.2) → debug-package build — verifying each against the dump</span></div>
+        <div class="row"><span class="k">writes</span><span class="v">installs the ISF · <code>json/linux_kernel.json</code></span></div></div>
+      <div class="modc"><div class="mn">correlator.{os}.py</div>
+        <div class="row"><span class="k">reads</span><span class="v">all of <code>json/</code></span></div>
+        <div class="row"><span class="k">does</span><span class="v">joins process ↔ network ↔ command ↔ modules ↔ hashes by PID into one record per process</span></div>
+        <div class="row"><span class="k">writes</span><span class="v"><code>correlation_report.txt</code></span></div></div>
+      <div class="modc"><div class="mn">ioc_extractor.py</div>
+        <div class="row"><span class="k">reads</span><span class="v">the strings file (one pass)</span></div>
+        <div class="row"><span class="k">does</span><span class="v">context-anchored URLs, public IPs, emails, hashes, and crypto addresses — low false positive</span></div>
+        <div class="row"><span class="k">writes</span><span class="v"><code>iocs/</code></span></div></div>
+      <div class="modc"><div class="mn">run_health.py</div>
+        <div class="row"><span class="k">reads</span><span class="v"><code>json/</code> + the run log</span></div>
+        <div class="row"><span class="k">does</span><span class="v">corroborates the process list, flags silently-empty tabs, and classifies each failure</span></div>
+        <div class="row"><span class="k">writes</span><span class="v"><code>run_health.json</code> + a SUMMARY banner</span></div></div>
+      <div class="modc"><div class="mn">crash_report.py</div>
+        <div class="row"><span class="k">reads</span><span class="v">the health result + target metadata</span></div>
+        <div class="row"><span class="k">does</span><span class="v">builds a scrubbed, image-free failure fingerprint (opt-in transport, default off)</span></div>
+        <div class="row"><span class="k">writes</span><span class="v"><code>crash_report.json</code> — only on a real failure</span></div></div>
+      <div class="modc"><div class="mn">html_report.{os}.py</div>
+        <div class="row"><span class="k">reads</span><span class="v">the whole output directory</span></div>
+        <div class="row"><span class="k">does</span><span class="v">builds the 13-tab report, encoding the data so hostile memory strings can't inject markup</span></div>
+        <div class="row"><span class="k">writes</span><span class="v"><code>report.html</code></span></div></div>
+    </div>
+  </div>
+</section>
+
+<section class="tint">
+  <div class="wrap">
+    <div class="shead"><span class="no">07</span><h2>Loud, never silent</h2></div>
+    <p class="sintro">A forensics report that is <em>quietly</em> incomplete is worse than one that
+      crashes — an empty Processes tab looks exactly like a clean machine. Three mechanisms make
+      that impossible, and every run gets an unambiguous status.</p>
+    <div class="grid g3" style="margin-bottom:18px">
+      <div class="card"><div class="ic">MECHANISM 01</div><h4>Silent-failure demotion</h4>
+        <p>A plugin that exits 0 but returns nothing while logging a struct/symbol exception is
+          reclassified as a failure — its diagnostic output is kept, not discarded.</p></div>
+      <div class="card"><div class="ic">MECHANISM 02</div><h4>Resume sidecar</h4>
+        <p>A failed plugin leaves a marker so a re-run re-executes it instead of trusting stale or
+          partial output.</p></div>
+      <div class="card"><div class="ic">MECHANISM 03</div><h4>Process corroboration</h4>
+        <p>The linked-list process view is cross-checked against a pool scan — "scan finds
+          processes but the list is empty" is caught structurally.</p></div>
+    </div>
+    <div class="status3">
+      <div class="st good"><div class="tag">Healthy</div><h4>Corroborated &amp; complete</h4>
+        <p>Process sources agree, key tabs populated. Any failures are documented non-bugs. No
+          fingerprint is written — nothing broke.</p></div>
+      <div class="st warn"><div class="tag">Degraded</div><h4>Incomplete — verify</h4>
+        <p>An empty key tab, or a symbol/struct issue. The report notes it and a scrubbed
+          fingerprint records exactly which plugins and why.</p></div>
+      <div class="st crit"><div class="tag">Broken</div><h4>Do not trust the tabs</h4>
+        <p>No process source produced output, or the list is empty while a scan finds processes.
+          Wrong symbols, a bad image, or hidden processes — flagged, never hidden.</p></div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="shead"><span class="no">08</span><h2>Symbol acquisition, in order</h2></div>
+    <p class="sintro">Linux/macOS have no universal symbol server, so RAMBreaker climbs this ladder
+      — first rung that validates against the dump wins.</p>
+    <div class="ladder">
+      <div class="rung"><span class="rn">0</span><div><h4>Already installed</h4>
+        <p>Do the currently installed symbols list real processes? If yes, persist the kernel info and go.</p></div></div>
+      <div class="rung"><span class="rn">1</span><div><h4>Exact community ISF</h4>
+        <p>Scan every banner in the image, rank candidates, download each one's ISF, and verify it validates.</p></div></div>
+      <div class="rung"><span class="rn">2</span><div><h4>Banner-patched ISF</h4>
+        <p>Patch a close match (e.g. a Debian ISF for a Kali kernel from the same source) to byte-match this banner.</p></div></div>
+      <div class="rung"><span class="rn">3</span><div><h4>Local DWARF build</h4>
+        <p>Build an ISF from local kernel debug files with dwarf2json, then verify.</p></div></div>
+      <div class="rung"><span class="rn">4</span><div><h4>Built from the image itself</h4>
+        <p><b>v6.2.</b> Reconstruct the ISF from the <b>BTF type graph + kallsyms the kernel
+          carries in its own memory</b> — no vmlinux, no package, no repo, no network. Rescues a
+          kernel too new to be published, too old to still be hosted, custom-compiled, or analysed
+          air-gapped. Needs <code>CONFIG_DEBUG_INFO_BTF</code> (~5.8+); falls through if absent.
+          Deliberately ordered <i>before</i> the multi-GB download below.</p></div></div>
+      <div class="rung"><span class="rn">5</span><div><h4>Official debug package</h4>
+        <p>Fetch the distro's <code>-dbgsym</code>/<code>-dbg</code>/debuginfo package over HTTPS
+          (magic + SHA-256 verified), extract vmlinux, run dwarf2json, install, verify.</p></div></div>
+      <div class="rung fail"><span class="rn">!</span><div><h4>None validated → fail precisely</h4>
+        <p>Record the parsed kernel banner and classify the failure, so the exact symbols can be
+          refetched later — without ever needing the evidence image.</p></div></div>
+    </div>
+  </div>
+</section>
+
+<section class="tint">
+  <div class="wrap">
+    <div class="shead"><span class="no">09</span><h2>The report — 13 tabs</h2></div>
+    <p class="sintro">Self-contained, offline, hardened against XSS from attacker-controlled memory
+      strings. Press <code>/</code> or <code>Ctrl/⌘-K</code> to search across every tab at once.</p>
+    <div class="tabs">
+      <div class="tab"><div class="tn">01</div><h4>Summary + Device</h4><p>counts, system info, correlation summary</p></div>
+      <div class="tab"><div class="tn">02</div><h4>Correlation</h4><p>the stitched per-process story</p></div>
+      <div class="tab"><div class="tn">03</div><h4>Injection</h4><p>malfind × module list — HIGH/MED/LOW</p></div>
+      <div class="tab"><div class="tn">04</div><h4>Browser + Plugins</h4><p>browser history + every raw plugin JSON</p></div>
+      <div class="tab"><div class="tn">05</div><h4>Process Tree</h4><p>collapsible tree, hidden/orphan markers</p></div>
+      <div class="tab"><div class="tn">06</div><h4>Process Graph + Network</h4><p>pannable node graph + network map</p></div>
+      <div class="tab"><div class="tn">07</div><h4>IOCs</h4><p>URLs, IPs, emails, hashes, crypto</p></div>
+      <div class="tab"><div class="tn">08</div><h4>Timeline</h4><p>the merged chronology</p></div>
+      <div class="tab"><div class="tn">09</div><h4>Shell Commands</h4><p>cmdline · cmdscan · consoles · psaux</p></div>
+      <div class="tab"><div class="tn">10</div><h4>Popular Files</h4><p>Desktop / Downloads / tmp</p></div>
+      <div class="tab"><div class="tn">11</div><h4>Scheduled Tasks</h4><p>schtasks · cron · launchd</p></div>
+      <div class="tab"><div class="tn">12</div><h4>Registry</h4><p>hives, Run keys, UserAssist, key tree</p></div>
+      <div class="tab"><div class="tn">13</div><h4>Other JSON</h4><p>leftovers, EVTX + comms data</p></div>
+      <div class="tab" style="border-style:dashed"><div class="tn">/ ⌘K</div><h4>Global search</h4><p>every tab, at once</p></div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="shead"><span class="no">10</span><h2>Engineered to be trusted</h2></div>
+    <p class="sintro">A forensics tool earns trust in the details, so the unglamorous parts are
+      first-class.</p>
+    <div class="grid g2">
+      <div class="card"><h4>Tested where it matters</h4><p>A pure-logic suite pins the health,
+        scrubbing, and report-encoding code; a "canary" drives the <em>entire</em> real pipeline
+        against a fake Volatility — no memory image needed — so runtime regressions are caught in
+        seconds. A pre-commit hook runs both before every commit. 166 pure-logic assertions plus a 21-assertion pipeline canary — 187 checks, all green.</p></div>
+      <div class="card"><h4>Secure by construction</h4><p>The report neutralizes hostile memory
+        strings; every download is integrity-verified (HTTPS + magic + SHA-256); NTLM hashes are
+        redacted in the report; and the project is structured so evidence never enters version
+        control.</p></div>
+      <div class="card"><h4>Evidence, not verdicts</h4><p>Nothing is labeled "malware." Findings
+        are observations — an unexpected parent, a process a scan sees but the list doesn't — so
+        the analyst stays in control and the output stays defensible.</p></div>
+      <div class="card"><h4>Reproducible &amp; portable</h4><p>The toolchain is pinned, the symbol
+        builder is committed in-repo, and a run's symbol resolution is reproducible — so a finding
+        can be reproduced from the same image and tag.</p></div>
+    </div>
+    <div class="codeblock" style="margin-top:18px">python3 crescent_toolkit.py                          <span style="color:var(--muted)"># interactive menu</span>
+python3 crescent_toolkit.py full -i image.raw -o ./results/
+git config core.hooksPath .githooks                  <span style="color:var(--muted)"># enable the test gate</span></div>
+  </div>
+</section>
+
+</main>
+
+<footer>
+  <div class="wrap">
+    <p class="foot-brand">RAM<span class="k">Breaker</span> <span style="color:var(--muted);font-weight:400;font-size:13px">· v6.2</span></p>
+    <p style="margin-top:10px">MIT-licensed. Drives Volatility 2/3 and bundles dwarf2json as
+      external tools, which keep their own licenses. Built to make memory forensics across
+      operating systems fast, correlated, and precise — from image to a report you can hand to
+      someone, in one command.</p>
+  </div>
+</footer>
+
+</body>
+</html>

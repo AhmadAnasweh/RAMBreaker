@@ -1,0 +1,2149 @@
+{
+  "bootstrap": {
+    "heavy": [
+      30,
+      120
+    ],
+    "light": [
+      5,
+      3
+    ],
+    "medium": [
+      10,
+      20
+    ]
+  },
+  "classes": {
+    "vol2|*|heavy": {
+      "base_s": 2.37,
+      "n_plugins": 8,
+      "per_gb_s": 7.1
+    },
+    "vol2|*|light": {
+      "base_s": 1.68,
+      "n_plugins": 5,
+      "per_gb_s": 6.38
+    },
+    "vol2|*|medium": {
+      "base_s": 3.08,
+      "n_plugins": 21,
+      "per_gb_s": 4.74
+    },
+    "vol2|linux|heavy": {
+      "base_s": 2.04,
+      "n_plugins": 4,
+      "per_gb_s": 7.78
+    },
+    "vol2|linux|light": {
+      "base_s": 1.68,
+      "n_plugins": 5,
+      "per_gb_s": 6.38
+    },
+    "vol2|linux|medium": {
+      "base_s": 1.56,
+      "n_plugins": 11,
+      "per_gb_s": 5.95
+    },
+    "vol2|windows|heavy": {
+      "base_s": 8.71,
+      "n_plugins": 4,
+      "per_gb_s": 4.14
+    },
+    "vol2|windows|medium": {
+      "base_s": 4.92,
+      "n_plugins": 10,
+      "per_gb_s": 2.34
+    },
+    "vol3|*|heavy": {
+      "base_s": 1.41,
+      "n_plugins": 47,
+      "per_gb_s": 5.28
+    },
+    "vol3|*|light": {
+      "base_s": 1.7,
+      "n_plugins": 23,
+      "per_gb_s": 0.14
+    },
+    "vol3|*|medium": {
+      "base_s": 3.62,
+      "n_plugins": 21,
+      "per_gb_s": 0.04
+    },
+    "vol3|linux|heavy": {
+      "base_s": 0.0,
+      "n_plugins": 16,
+      "per_gb_s": 17.38
+    },
+    "vol3|linux|light": {
+      "base_s": 2.6,
+      "n_plugins": 7,
+      "per_gb_s": 2.54
+    },
+    "vol3|linux|medium": {
+      "base_s": 5.69,
+      "n_plugins": 3,
+      "per_gb_s": 1.94
+    },
+    "vol3|mac|heavy": {
+      "base_s": 12.84,
+      "n_plugins": 9,
+      "per_gb_s": 0.55
+    },
+    "vol3|mac|light": {
+      "base_s": 4.43,
+      "n_plugins": 5,
+      "per_gb_s": 0.0
+    },
+    "vol3|mac|medium": {
+      "base_s": 5.07,
+      "n_plugins": 10,
+      "per_gb_s": 0.0
+    },
+    "vol3|windows|heavy": {
+      "base_s": 0.26,
+      "n_plugins": 22,
+      "per_gb_s": 5.56
+    },
+    "vol3|windows|light": {
+      "base_s": 1.45,
+      "n_plugins": 11,
+      "per_gb_s": 0.13
+    },
+    "vol3|windows|medium": {
+      "base_s": 1.48,
+      "n_plugins": 8,
+      "per_gb_s": 0.29
+    }
+  },
+  "fitted_at": "2026-11-18T03:26:39",
+  "fitted_from_samples": 1708,
+  "formats": {
+    "crashdump": {
+      "default_ratio": 1.0,
+      "n_samples": 51,
+      "plugins": {
+        "vol3|windows|windows.cmdline.CmdLine": {
+          "censored_only": false,
+          "n": 1,
+          "n_timeouts": 0,
+          "ratio": 0.243
+        },
+        "vol3|windows|windows.filescan.FileScan": {
+          "censored_only": false,
+          "n": 1,
+          "n_timeouts": 0,
+          "ratio": 0.612
+        },
+        "vol3|windows|windows.hashdump.Hashdump": {
+          "censored_only": false,
+          "n": 1,
+          "n_timeouts": 0,
+          "ratio": 0.734
+        },
+        "vol3|windows|windows.info.Info": {
+          "censored_only": false,
+          "n": 1,
+          "n_timeouts": 0,
+          "ratio": 1.371
+        },
+        "vol3|windows|windows.malfind.Malfind": {
+          "censored_only": false,
+          "n": 1,
+          "n_timeouts": 0,
+          "ratio": 0.275
+        },
+        "vol3|windows|windows.netscan.NetScan": {
+          "censored_only": false,
+          "n": 1,
+          "n_timeouts": 0,
+          "ratio": 0.915
+        },
+        "vol3|windows|windows.procdump_offset.ProcDumpOffset": {
+          "censored_only": false,
+          "n": 2,
+          "n_timeouts": 0,
+          "ratio": 0.204
+        },
+        "vol3|windows|windows.pslist.PsList": {
+          "censored_only": false,
+          "n": 1,
+          "n_timeouts": 0,
+          "ratio": 0.77
+        },
+        "vol3|windows|windows.pstree.PsTree": {
+          "censored_only": false,
+          "n": 1,
+          "n_timeouts": 0,
+          "ratio": 0.27
+        },
+        "vol3|windows|windows.registry.hivelist.HiveList": {
+          "censored_only": false,
+          "n": 1,
+          "n_timeouts": 0,
+          "ratio": 1.193
+        },
+        "vol3|windows|windows.registry.printkey.PrintKey": {
+          "censored_only": false,
+          "n": 1,
+          "n_timeouts": 0,
+          "ratio": 0.945
+        },
+        "vol3|windows|windows.svcscan.SvcScan": {
+          "censored_only": false,
+          "n": 1,
+          "n_timeouts": 0,
+          "ratio": 0.879
+        },
+        "vol3|windows|windows.vadinfo.VadInfo#dump1": {
+          "censored_only": false,
+          "n": 38,
+          "n_timeouts": 0,
+          "ratio": 1.093
+        }
+      }
+    },
+    "crashdump+hdd": {
+      "default_ratio": 1.004,
+      "n_samples": 97,
+      "plugins": {
+        "vol3|windows|windows.callbacks.Callbacks": {
+          "censored_only": false,
+          "n": 2,
+          "n_timeouts": 0,
+          "ratio": 0.391
+        },
+        "vol3|windows|windows.cmdline.CmdLine": {
+          "censored_only": false,
+          "n": 2,
+          "n_timeouts": 0,
+          "ratio": 0.152
+        },
+        "vol3|windows|windows.dlllist.DllList": {
+          "censored_only": false,
+          "n": 2,
+          "n_timeouts": 0,
+          "ratio": 1.891
+        },
+        "vol3|windows|windows.driverirp.DriverIrp": {
+          "censored_only": false,
+          "n": 2,
+          "n_timeouts": 0,
+          "ratio": 0.453
+        },
+        "vol3|windows|windows.driverscan.DriverScan": {
+          "censored_only": false,
+          "n": 2,
+          "n_timeouts": 0,
+          "ratio": 0.505
+        },
+        "vol3|windows|windows.envars.Envars": {
+          "censored_only": false,
+          "n": 2,
+          "n_timeouts": 0,
+          "ratio": 1.085
+        },
+        "vol3|windows|windows.filescan.FileScan": {
+          "censored_only": false,
+          "n": 2,
+          "n_timeouts": 0,
+          "ratio": 0.494
+        },
+        "vol3|windows|windows.getsids.GetSIDs": {
+          "censored_only": false,
+          "n": 2,
+          "n_timeouts": 0,
+          "ratio": 0.86
+        },
+        "vol3|windows|windows.handles.Handles": {
+          "censored_only": false,
+          "n": 2,
+          "n_timeouts": 0,
+          "ratio": 1.34
+        },
+        "vol3|windows|windows.hashdump.Hashdump": {
+          "censored_only": false,
+          "n": 2,
+          "n_timeouts": 0,
+          "ratio": 0.775
+        },
+        "vol3|windows|windows.info.Info": {
+          "censored_only": false,
+          "n": 2,
+          "n_timeouts": 0,
+          "ratio": 0.944
+        },
+        "vol3|windows|windows.ldrmodules.LdrModules": {
+          "censored_only": false,
+          "n": 2,
+          "n_timeouts": 0,
+          "ratio": 3.594
+        },
+        "vol3|windows|windows.malfind.Malfind": {
+          "censored_only": false,
+          "n": 2,
+          "n_timeouts": 0,
+          "ratio": 0.28
+        },
+        "vol3|windows|windows.mftscan.MFTScan": {
+          "censored_only": false,
+          "n": 2,
+          "n_timeouts": 0,
+          "ratio": 0.363
+        },
+        "vol3|windows|windows.modscan.ModScan": {
+          "censored_only": false,
+          "n": 2,
+          "n_timeouts": 0,
+          "ratio": 0.408
+        },
+        "vol3|windows|windows.modules.Modules": {
+          "censored_only": false,
+          "n": 2,
+          "n_timeouts": 0,
+          "ratio": 0.925
+        },
+        "vol3|windows|windows.mutantscan.MutantScan": {
+          "censored_only": false,
+          "n": 5,
+          "n_timeouts": 3,
+          "ratio": 11.322
+        },
+        "vol3|windows|windows.netscan.NetScan": {
+          "censored_only": false,
+          "n": 2,
+          "n_timeouts": 0,
+          "ratio": 0.94
+        },
+        "vol3|windows|windows.netstat.NetStat": {
+          "censored_only": false,
+          "n": 2,
+          "n_timeouts": 0,
+          "ratio": 1.442
+        },
+        "vol3|windows|windows.privileges.Privs": {
+          "censored_only": false,
+          "n": 2,
+          "n_timeouts": 0,
+          "ratio": 1.1
+        },
+        "vol3|windows|windows.procdump_offset.ProcDumpOffset": {
+          "censored_only": false,
+          "n": 1,
+          "n_timeouts": 0,
+          "ratio": 0.328
+        },
+        "vol3|windows|windows.pslist.PsList": {
+          "censored_only": false,
+          "n": 2,
+          "n_timeouts": 0,
+          "ratio": 1.362
+        },
+        "vol3|windows|windows.pslist.PsList#dump": {
+          "censored_only": false,
+          "n": 3,
+          "n_timeouts": 0,
+          "ratio": 0.974
+        },
+        "vol3|windows|windows.psscan.PsScan": {
+          "censored_only": false,
+          "n": 3,
+          "n_timeouts": 1,
+          "ratio": 13.76
+        },
+        "vol3|windows|windows.psscan.PsScan#dump": {
+          "censored_only": true,
+          "n": 2,
+          "n_timeouts": 2,
+          "ratio": 10.435
+        },
+        "vol3|windows|windows.pstree.PsTree": {
+          "censored_only": false,
+          "n": 2,
+          "n_timeouts": 0,
+          "ratio": 1.592
+        },
+        "vol3|windows|windows.registry.hivelist.HiveList": {
+          "censored_only": false,
+          "n": 2,
+          "n_timeouts": 0,
+          "ratio": 1.004
+        },
+        "vol3|windows|windows.registry.hivescan.HiveScan": {
+          "censored_only": false,
+          "n": 2,
+          "n_timeouts": 0,
+          "ratio": 0.448
+        },
+        "vol3|windows|windows.registry.printkey.PrintKey": {
+          "censored_only": false,
+          "n": 2,
+          "n_timeouts": 0,
+          "ratio": 1.018
+        },
+        "vol3|windows|windows.registry.userassist.UserAssist": {
+          "censored_only": false,
+          "n": 1,
+          "n_timeouts": 0,
+          "ratio": 1.045
+        },
+        "vol3|windows|windows.sessions.Sessions": {
+          "censored_only": false,
+          "n": 2,
+          "n_timeouts": 0,
+          "ratio": 1.093
+        },
+        "vol3|windows|windows.ssdt.SSDT": {
+          "censored_only": false,
+          "n": 2,
+          "n_timeouts": 0,
+          "ratio": 0.924
+        },
+        "vol3|windows|windows.svcscan.SvcScan": {
+          "censored_only": false,
+          "n": 2,
+          "n_timeouts": 0,
+          "ratio": 1.316
+        },
+        "vol3|windows|windows.symlinkscan.SymlinkScan": {
+          "censored_only": false,
+          "n": 3,
+          "n_timeouts": 1,
+          "ratio": 3.15
+        },
+        "vol3|windows|windows.thrdscan.ThrdScan": {
+          "censored_only": false,
+          "n": 2,
+          "n_timeouts": 0,
+          "ratio": 0.548
+        },
+        "vol3|windows|windows.vadinfo.VadInfo#dump1": {
+          "censored_only": false,
+          "n": 20,
+          "n_timeouts": 0,
+          "ratio": 1.66
+        },
+        "vol3|windows|windows.vadinfo.VadInfo#pid": {
+          "censored_only": false,
+          "n": 1,
+          "n_timeouts": 0,
+          "ratio": 1.061
+        },
+        "vol3|windows|windows.vadyarascan.VadYaraScan": {
+          "censored_only": false,
+          "n": 2,
+          "n_timeouts": 1,
+          "ratio": 255.567
+        }
+      }
+    },
+    "raw+hdd": {
+      "default_ratio": 1.011,
+      "n_samples": 27,
+      "plugins": {
+        "vol3|linux|linux.malfind.Malfind": {
+          "censored_only": false,
+          "n": 1,
+          "n_timeouts": 0,
+          "ratio": 1.307
+        },
+        "vol3|linux|linux.proc.Maps": {
+          "censored_only": false,
+          "n": 1,
+          "n_timeouts": 0,
+          "ratio": 1.321
+        },
+        "vol3|linux|linux.sockstat.Sockstat": {
+          "censored_only": false,
+          "n": 1,
+          "n_timeouts": 0,
+          "ratio": 1.385
+        },
+        "vol3|windows|windows.callbacks.Callbacks": {
+          "censored_only": true,
+          "n": 1,
+          "n_timeouts": 1,
+          "ratio": 3.666
+        },
+        "vol3|windows|windows.cmdline.CmdLine": {
+          "censored_only": false,
+          "n": 1,
+          "n_timeouts": 0,
+          "ratio": 0.083
+        },
+        "vol3|windows|windows.dlllist.DllList": {
+          "censored_only": false,
+          "n": 1,
+          "n_timeouts": 0,
+          "ratio": 2.505
+        },
+        "vol3|windows|windows.envars.Envars": {
+          "censored_only": false,
+          "n": 1,
+          "n_timeouts": 0,
+          "ratio": 0.715
+        },
+        "vol3|windows|windows.getsids.GetSIDs": {
+          "censored_only": false,
+          "n": 1,
+          "n_timeouts": 0,
+          "ratio": 0.558
+        },
+        "vol3|windows|windows.handles.Handles": {
+          "censored_only": false,
+          "n": 1,
+          "n_timeouts": 0,
+          "ratio": 2.813
+        },
+        "vol3|windows|windows.info.Info": {
+          "censored_only": false,
+          "n": 1,
+          "n_timeouts": 0,
+          "ratio": 1.126
+        },
+        "vol3|windows|windows.ldrmodules.LdrModules": {
+          "censored_only": false,
+          "n": 2,
+          "n_timeouts": 1,
+          "ratio": 4.22
+        },
+        "vol3|windows|windows.malfind.Malfind": {
+          "censored_only": false,
+          "n": 1,
+          "n_timeouts": 0,
+          "ratio": 0.986
+        },
+        "vol3|windows|windows.netscan.NetScan": {
+          "censored_only": true,
+          "n": 2,
+          "n_timeouts": 2,
+          "ratio": 9.169
+        },
+        "vol3|windows|windows.netstat.NetStat": {
+          "censored_only": false,
+          "n": 1,
+          "n_timeouts": 0,
+          "ratio": 0.972
+        },
+        "vol3|windows|windows.privileges.Privs": {
+          "censored_only": false,
+          "n": 1,
+          "n_timeouts": 0,
+          "ratio": 0.907
+        },
+        "vol3|windows|windows.procdump_offset.ProcDumpOffset": {
+          "censored_only": false,
+          "n": 2,
+          "n_timeouts": 0,
+          "ratio": 0.105
+        },
+        "vol3|windows|windows.pslist.PsList": {
+          "censored_only": false,
+          "n": 1,
+          "n_timeouts": 0,
+          "ratio": 0.986
+        },
+        "vol3|windows|windows.psscan.PsScan": {
+          "censored_only": true,
+          "n": 2,
+          "n_timeouts": 2,
+          "ratio": 9.177
+        },
+        "vol3|windows|windows.psscan.PsScan#dump": {
+          "censored_only": true,
+          "n": 2,
+          "n_timeouts": 2,
+          "ratio": 9.504
+        },
+        "vol3|windows|windows.pstree.PsTree": {
+          "censored_only": false,
+          "n": 1,
+          "n_timeouts": 0,
+          "ratio": 1.598
+        },
+        "vol3|windows|windows.sessions.Sessions": {
+          "censored_only": false,
+          "n": 1,
+          "n_timeouts": 0,
+          "ratio": 1.037
+        },
+        "vol3|windows|windows.ssdt.SSDT": {
+          "censored_only": false,
+          "n": 1,
+          "n_timeouts": 0,
+          "ratio": 0.764
+        }
+      }
+    }
+  },
+  "formula": "timeout = clamp(safety_factor * (base_s + per_gb_s * dump_GB) * format_ratio + slack_s, min_timeout_s, max_timeout_s); retry once at timeout * retry_factor; format_ratio = 1 for raw images, formats.<fmt>.plugins.<key>.ratio (or default_ratio) otherwise",
+  "intercept_share": 0.512,
+  "max_timeout_s": 14400,
+  "min_timeout_s": 120,
+  "plugins": {
+    "vol2|linux|linux_bash": {
+      "base_s": 1.72,
+      "censored_only": false,
+      "max_observed_s": 3.8,
+      "n": 3,
+      "n_timeouts": 0,
+      "per_gb_s": 6.56,
+      "sizes_gb": [
+        0.25
+      ]
+    },
+    "vol2|linux|linux_check_modules": {
+      "base_s": 1.59,
+      "censored_only": false,
+      "max_observed_s": 3.6,
+      "n": 3,
+      "n_timeouts": 0,
+      "per_gb_s": 6.07,
+      "sizes_gb": [
+        0.25
+      ]
+    },
+    "vol2|linux|linux_check_syscall": {
+      "base_s": 1.02,
+      "censored_only": false,
+      "max_observed_s": 2.0,
+      "n": 1,
+      "n_timeouts": 0,
+      "per_gb_s": 3.9,
+      "sizes_gb": [
+        0.25
+      ]
+    },
+    "vol2|linux|linux_dmesg": {
+      "base_s": 1.56,
+      "censored_only": false,
+      "max_observed_s": 3.5,
+      "n": 3,
+      "n_timeouts": 0,
+      "per_gb_s": 5.95,
+      "sizes_gb": [
+        0.25
+      ]
+    },
+    "vol2|linux|linux_dump_map#vol2": {
+      "base_s": 1.32,
+      "censored_only": false,
+      "max_observed_s": 2.7,
+      "n": 2,
+      "n_timeouts": 0,
+      "per_gb_s": 5.03,
+      "sizes_gb": [
+        0.25
+      ]
+    },
+    "vol2|linux|linux_dump_map1#vol2": {
+      "base_s": 1.24,
+      "censored_only": false,
+      "max_observed_s": 2.5,
+      "n": 2,
+      "n_timeouts": 0,
+      "per_gb_s": 4.74,
+      "sizes_gb": [
+        0.25
+      ]
+    },
+    "vol2|linux|linux_elfs": {
+      "base_s": 2.21,
+      "censored_only": false,
+      "max_observed_s": 4.9,
+      "n": 3,
+      "n_timeouts": 0,
+      "per_gb_s": 8.41,
+      "sizes_gb": [
+        0.25
+      ]
+    },
+    "vol2|linux|linux_enumerate_files": {
+      "base_s": 3.41,
+      "censored_only": false,
+      "max_observed_s": 7.2,
+      "n": 3,
+      "n_timeouts": 0,
+      "per_gb_s": 12.99,
+      "sizes_gb": [
+        0.25
+      ]
+    },
+    "vol2|linux|linux_find_file#vol2": {
+      "base_s": 1.22,
+      "censored_only": false,
+      "max_observed_s": 2.5,
+      "n": 7,
+      "n_timeouts": 0,
+      "per_gb_s": 4.64,
+      "sizes_gb": [
+        0.25
+      ]
+    },
+    "vol2|linux|linux_find_file_L#vol2": {
+      "base_s": 3.33,
+      "censored_only": false,
+      "max_observed_s": 6.5,
+      "n": 1,
+      "n_timeouts": 0,
+      "per_gb_s": 12.68,
+      "sizes_gb": [
+        0.25
+      ]
+    },
+    "vol2|linux|linux_ifconfig": {
+      "base_s": 1.55,
+      "censored_only": false,
+      "max_observed_s": 3.6,
+      "n": 4,
+      "n_timeouts": 0,
+      "per_gb_s": 5.92,
+      "sizes_gb": [
+        0.25
+      ]
+    },
+    "vol2|linux|linux_lsmod": {
+      "base_s": 1.63,
+      "censored_only": false,
+      "max_observed_s": 3.6,
+      "n": 3,
+      "n_timeouts": 0,
+      "per_gb_s": 6.2,
+      "sizes_gb": [
+        0.25
+      ]
+    },
+    "vol2|linux|linux_lsof": {
+      "base_s": 2.08,
+      "censored_only": false,
+      "max_observed_s": 4.5,
+      "n": 3,
+      "n_timeouts": 0,
+      "per_gb_s": 7.94,
+      "sizes_gb": [
+        0.25
+      ]
+    },
+    "vol2|linux|linux_mount": {
+      "base_s": 2.67,
+      "censored_only": false,
+      "max_observed_s": 5.8,
+      "n": 3,
+      "n_timeouts": 0,
+      "per_gb_s": 10.16,
+      "sizes_gb": [
+        0.25
+      ]
+    },
+    "vol2|linux|linux_netstat": {
+      "base_s": 1.71,
+      "censored_only": false,
+      "max_observed_s": 3.8,
+      "n": 3,
+      "n_timeouts": 0,
+      "per_gb_s": 6.52,
+      "sizes_gb": [
+        0.25
+      ]
+    },
+    "vol2|linux|linux_proc_maps": {
+      "base_s": 2.0,
+      "censored_only": false,
+      "max_observed_s": 4.2,
+      "n": 2,
+      "n_timeouts": 0,
+      "per_gb_s": 7.61,
+      "sizes_gb": [
+        0.25
+      ]
+    },
+    "vol2|linux|linux_procdump#vol2": {
+      "base_s": 1.29,
+      "censored_only": false,
+      "max_observed_s": 2.5,
+      "n": 1,
+      "n_timeouts": 0,
+      "per_gb_s": 4.92,
+      "sizes_gb": [
+        0.25
+      ]
+    },
+    "vol2|linux|linux_psaux": {
+      "base_s": 1.68,
+      "censored_only": false,
+      "max_observed_s": 3.7,
+      "n": 3,
+      "n_timeouts": 0,
+      "per_gb_s": 6.4,
+      "sizes_gb": [
+        0.25
+      ]
+    },
+    "vol2|linux|linux_pslist": {
+      "base_s": 1.69,
+      "censored_only": false,
+      "max_observed_s": 3.7,
+      "n": 3,
+      "n_timeouts": 0,
+      "per_gb_s": 6.44,
+      "sizes_gb": [
+        0.25
+      ]
+    },
+    "vol2|linux|linux_pstree": {
+      "base_s": 1.68,
+      "censored_only": false,
+      "max_observed_s": 3.7,
+      "n": 3,
+      "n_timeouts": 0,
+      "per_gb_s": 6.38,
+      "sizes_gb": [
+        0.25
+      ]
+    },
+    "vol2|windows|apihooks": {
+      "base_s": 544.31,
+      "censored_only": false,
+      "max_observed_s": 1168.0,
+      "n": 6,
+      "n_timeouts": 2,
+      "per_gb_s": 259.13,
+      "sizes_gb": [
+        2.0
+      ]
+    },
+    "vol2|windows|atoms": {
+      "base_s": 4.1,
+      "censored_only": false,
+      "max_observed_s": 11.4,
+      "n": 15,
+      "n_timeouts": 0,
+      "per_gb_s": 1.95,
+      "sizes_gb": [
+        1.5,
+        2.0
+      ]
+    },
+    "vol2|windows|atomscan": {
+      "base_s": 2.53,
+      "censored_only": false,
+      "max_observed_s": 7.5,
+      "n": 13,
+      "n_timeouts": 0,
+      "per_gb_s": 1.2,
+      "sizes_gb": [
+        1.5,
+        2.0
+      ]
+    },
+    "vol2|windows|clipboard": {
+      "base_s": 6.6,
+      "censored_only": false,
+      "max_observed_s": 430.0,
+      "n": 22,
+      "n_timeouts": 0,
+      "per_gb_s": 3.14,
+      "sizes_gb": [
+        1.5,
+        2.0
+      ]
+    },
+    "vol2|windows|cmdscan": {
+      "base_s": 2.89,
+      "censored_only": false,
+      "max_observed_s": 8.0,
+      "n": 19,
+      "n_timeouts": 0,
+      "per_gb_s": 1.38,
+      "sizes_gb": [
+        1.5,
+        2.0
+      ]
+    },
+    "vol2|windows|consoles": {
+      "base_s": 3.08,
+      "censored_only": false,
+      "max_observed_s": 8.7,
+      "n": 20,
+      "n_timeouts": 0,
+      "per_gb_s": 1.46,
+      "sizes_gb": [
+        1.5,
+        2.0
+      ]
+    },
+    "vol2|windows|deskscan": {
+      "base_s": 3.15,
+      "censored_only": false,
+      "max_observed_s": 8.2,
+      "n": 13,
+      "n_timeouts": 0,
+      "per_gb_s": 1.5,
+      "sizes_gb": [
+        1.5,
+        2.0
+      ]
+    },
+    "vol2|windows|eventhooks": {
+      "base_s": 5.23,
+      "censored_only": false,
+      "max_observed_s": 325.0,
+      "n": 12,
+      "n_timeouts": 0,
+      "per_gb_s": 2.49,
+      "sizes_gb": [
+        1.5,
+        2.0
+      ]
+    },
+    "vol2|windows|hashdump": {
+      "base_s": 4.61,
+      "censored_only": false,
+      "max_observed_s": 11.2,
+      "n": 17,
+      "n_timeouts": 0,
+      "per_gb_s": 2.19,
+      "sizes_gb": [
+        1.5,
+        2.0
+      ]
+    },
+    "vol2|windows|iehistory": {
+      "base_s": 8.81,
+      "censored_only": false,
+      "max_observed_s": 38.8,
+      "n": 22,
+      "n_timeouts": 0,
+      "per_gb_s": 4.19,
+      "sizes_gb": [
+        1.5,
+        2.0
+      ]
+    },
+    "vol2|windows|messagehooks": {
+      "base_s": 20.49,
+      "censored_only": false,
+      "max_observed_s": 60.0,
+      "n": 17,
+      "n_timeouts": 0,
+      "per_gb_s": 9.75,
+      "sizes_gb": [
+        1.5,
+        2.0
+      ]
+    },
+    "vol2|windows|shellbags": {
+      "base_s": 13.83,
+      "censored_only": false,
+      "max_observed_s": 47.4,
+      "n": 17,
+      "n_timeouts": 0,
+      "per_gb_s": 6.58,
+      "sizes_gb": [
+        1.5,
+        2.0
+      ]
+    },
+    "vol2|windows|shimcache": {
+      "base_s": 3.59,
+      "censored_only": false,
+      "max_observed_s": 9.0,
+      "n": 16,
+      "n_timeouts": 0,
+      "per_gb_s": 1.71,
+      "sizes_gb": [
+        1.5,
+        2.0
+      ]
+    },
+    "vol2|windows|timers": {
+      "base_s": 372.93,
+      "censored_only": false,
+      "max_observed_s": 797.0,
+      "n": 8,
+      "n_timeouts": 1,
+      "per_gb_s": 177.54,
+      "sizes_gb": [
+        2.0
+      ]
+    },
+    "vol3|linux|linux.bash.Bash": {
+      "base_s": 5.19,
+      "censored_only": false,
+      "max_observed_s": 15.2,
+      "n": 20,
+      "n_timeouts": 0,
+      "per_gb_s": 1.28,
+      "sizes_gb": [
+        1.0,
+        2.0,
+        2.3,
+        4.0
+      ]
+    },
+    "vol3|linux|linux.check_modules.Check_modules": {
+      "base_s": 3.53,
+      "censored_only": false,
+      "max_observed_s": 13.3,
+      "n": 19,
+      "n_timeouts": 0,
+      "per_gb_s": 1.7,
+      "sizes_gb": [
+        1.0,
+        2.0,
+        2.3,
+        4.0
+      ]
+    },
+    "vol3|linux|linux.check_syscall.Check_syscall": {
+      "base_s": 5.69,
+      "censored_only": false,
+      "max_observed_s": 23.4,
+      "n": 15,
+      "n_timeouts": 0,
+      "per_gb_s": 2.64,
+      "sizes_gb": [
+        1.0,
+        2.0,
+        2.3,
+        4.0
+      ]
+    },
+    "vol3|linux|linux.elfs.Elfs": {
+      "base_s": 0.0,
+      "censored_only": false,
+      "max_observed_s": 155.6,
+      "n": 15,
+      "n_timeouts": 0,
+      "per_gb_s": 27.27,
+      "sizes_gb": [
+        1.0,
+        2.0,
+        2.3,
+        4.0
+      ]
+    },
+    "vol3|linux|linux.elfs.Elfs#dump": {
+      "base_s": 4.68,
+      "censored_only": false,
+      "max_observed_s": 15.3,
+      "n": 12,
+      "n_timeouts": 0,
+      "per_gb_s": 0.96,
+      "sizes_gb": [
+        1.0,
+        2.0,
+        2.3,
+        4.0
+      ]
+    },
+    "vol3|linux|linux.envars.Envars": {
+      "base_s": 2.6,
+      "censored_only": false,
+      "max_observed_s": 13.9,
+      "n": 17,
+      "n_timeouts": 0,
+      "per_gb_s": 2.02,
+      "sizes_gb": [
+        1.0,
+        2.0,
+        2.3,
+        4.0
+      ]
+    },
+    "vol3|linux|linux.ip.Addr": {
+      "base_s": 2.41,
+      "censored_only": false,
+      "max_observed_s": 12.2,
+      "n": 15,
+      "n_timeouts": 0,
+      "per_gb_s": 1.86,
+      "sizes_gb": [
+        1.0,
+        2.0,
+        2.3,
+        4.0
+      ]
+    },
+    "vol3|linux|linux.library_list.LibraryList": {
+      "base_s": 0.0,
+      "censored_only": false,
+      "max_observed_s": 163.3,
+      "n": 7,
+      "n_timeouts": 0,
+      "per_gb_s": 32.11,
+      "sizes_gb": [
+        1.0,
+        2.0,
+        2.3,
+        4.0
+      ]
+    },
+    "vol3|linux|linux.lsmod.Lsmod": {
+      "base_s": 1.47,
+      "censored_only": false,
+      "max_observed_s": 22.3,
+      "n": 17,
+      "n_timeouts": 0,
+      "per_gb_s": 3.91,
+      "sizes_gb": [
+        1.0,
+        2.0,
+        2.3,
+        4.0
+      ]
+    },
+    "vol3|linux|linux.lsof.Lsof": {
+      "base_s": 0.0,
+      "censored_only": false,
+      "max_observed_s": 301.4,
+      "n": 18,
+      "n_timeouts": 0,
+      "per_gb_s": 49.64,
+      "sizes_gb": [
+        1.0,
+        2.0,
+        2.3,
+        4.0
+      ]
+    },
+    "vol3|linux|linux.malfind.Malfind": {
+      "base_s": 0.0,
+      "censored_only": false,
+      "max_observed_s": 322.1,
+      "n": 15,
+      "n_timeouts": 0,
+      "per_gb_s": 62.12,
+      "sizes_gb": [
+        1.0,
+        2.0,
+        2.3,
+        4.0
+      ]
+    },
+    "vol3|linux|linux.mountinfo.MountInfo": {
+      "base_s": 0.0,
+      "censored_only": false,
+      "max_observed_s": 87.4,
+      "n": 15,
+      "n_timeouts": 0,
+      "per_gb_s": 9.59,
+      "sizes_gb": [
+        1.0,
+        2.0,
+        2.3,
+        4.0
+      ]
+    },
+    "vol3|linux|linux.pagecache.Files": {
+      "base_s": 39.24,
+      "censored_only": false,
+      "max_observed_s": 123.0,
+      "n": 16,
+      "n_timeouts": 0,
+      "per_gb_s": 18.4,
+      "sizes_gb": [
+        1.0,
+        2.0,
+        2.3,
+        4.0
+      ]
+    },
+    "vol3|linux|linux.pagecache.InodePages#inode": {
+      "base_s": 0.0,
+      "censored_only": false,
+      "max_observed_s": 46.4,
+      "n": 22,
+      "n_timeouts": 0,
+      "per_gb_s": 4.41,
+      "sizes_gb": [
+        1.0,
+        2.0,
+        2.3,
+        4.0
+      ]
+    },
+    "vol3|linux|linux.pagecache.RecoverFs": {
+      "base_s": 14.34,
+      "censored_only": false,
+      "max_observed_s": 301.6,
+      "n": 8,
+      "n_timeouts": 0,
+      "per_gb_s": 74.01,
+      "sizes_gb": [
+        1.0,
+        2.0,
+        2.3,
+        4.0
+      ]
+    },
+    "vol3|linux|linux.proc.Maps": {
+      "base_s": 0.0,
+      "censored_only": false,
+      "max_observed_s": 348.4,
+      "n": 16,
+      "n_timeouts": 0,
+      "per_gb_s": 64.69,
+      "sizes_gb": [
+        1.0,
+        2.0,
+        2.3,
+        4.0
+      ]
+    },
+    "vol3|linux|linux.proc.Maps#dump": {
+      "base_s": 3.83,
+      "censored_only": false,
+      "max_observed_s": 11.6,
+      "n": 10,
+      "n_timeouts": 0,
+      "per_gb_s": 1.79,
+      "sizes_gb": [
+        1.0,
+        2.0,
+        2.3,
+        4.0
+      ]
+    },
+    "vol3|linux|linux.proc.Maps#dump1": {
+      "base_s": 0.0,
+      "censored_only": false,
+      "max_observed_s": 64.9,
+      "n": 80,
+      "n_timeouts": 0,
+      "per_gb_s": 3.14,
+      "sizes_gb": [
+        1.0,
+        2.0,
+        2.3,
+        4.0
+      ]
+    },
+    "vol3|linux|linux.proc.Maps#pid": {
+      "base_s": 2.38,
+      "censored_only": false,
+      "max_observed_s": 4.7,
+      "n": 1,
+      "n_timeouts": 0,
+      "per_gb_s": 2.27,
+      "sizes_gb": [
+        1.0
+      ]
+    },
+    "vol3|linux|linux.psaux.PsAux": {
+      "base_s": 3.25,
+      "censored_only": false,
+      "max_observed_s": 17.1,
+      "n": 16,
+      "n_timeouts": 0,
+      "per_gb_s": 2.64,
+      "sizes_gb": [
+        1.0,
+        2.0,
+        2.3,
+        4.0
+      ]
+    },
+    "vol3|linux|linux.pslist.PsList": {
+      "base_s": 3.6,
+      "censored_only": false,
+      "max_observed_s": 17.4,
+      "n": 17,
+      "n_timeouts": 0,
+      "per_gb_s": 2.56,
+      "sizes_gb": [
+        1.0,
+        2.0,
+        2.3,
+        4.0
+      ]
+    },
+    "vol3|linux|linux.psscan.PsScan": {
+      "base_s": 0.0,
+      "censored_only": false,
+      "max_observed_s": 79.9,
+      "n": 17,
+      "n_timeouts": 0,
+      "per_gb_s": 16.35,
+      "sizes_gb": [
+        1.0,
+        2.0,
+        2.3,
+        4.0
+      ]
+    },
+    "vol3|linux|linux.pstree.PsTree": {
+      "base_s": 3.63,
+      "censored_only": false,
+      "max_observed_s": 17.3,
+      "n": 17,
+      "n_timeouts": 0,
+      "per_gb_s": 2.54,
+      "sizes_gb": [
+        1.0,
+        2.0,
+        2.3,
+        4.0
+      ]
+    },
+    "vol3|linux|linux.sockstat.Sockstat": {
+      "base_s": 0.0,
+      "censored_only": false,
+      "max_observed_s": 1150.0,
+      "n": 21,
+      "n_timeouts": 2,
+      "per_gb_s": 208.02,
+      "sizes_gb": [
+        1.0,
+        2.0,
+        2.3,
+        4.0
+      ]
+    },
+    "vol3|linux|linux.tty_check.tty_check": {
+      "base_s": 18.62,
+      "censored_only": false,
+      "max_observed_s": 29.1,
+      "n": 15,
+      "n_timeouts": 0,
+      "per_gb_s": 1.94,
+      "sizes_gb": [
+        1.0,
+        2.0,
+        2.3,
+        4.0
+      ]
+    },
+    "vol3|linux|linux.vmayarascan.VmaYaraScan": {
+      "base_s": 8.21,
+      "censored_only": false,
+      "max_observed_s": 70.2,
+      "n": 11,
+      "n_timeouts": 0,
+      "per_gb_s": 1.99,
+      "sizes_gb": [
+        1.0,
+        2.0,
+        2.3,
+        4.0
+      ]
+    },
+    "vol3|mac|mac.bash.Bash": {
+      "base_s": 4.56,
+      "censored_only": false,
+      "max_observed_s": 5.0,
+      "n": 4,
+      "n_timeouts": 0,
+      "per_gb_s": 0.0,
+      "sizes_gb": [
+        1.0,
+        6.01
+      ]
+    },
+    "vol3|mac|mac.check_syscall.Check_syscall": {
+      "base_s": 5.0,
+      "censored_only": false,
+      "max_observed_s": 5.5,
+      "n": 4,
+      "n_timeouts": 0,
+      "per_gb_s": 0.0,
+      "sizes_gb": [
+        1.0,
+        6.01
+      ]
+    },
+    "vol3|mac|mac.check_sysctl.Check_sysctl": {
+      "base_s": 5.71,
+      "censored_only": false,
+      "max_observed_s": 6.3,
+      "n": 4,
+      "n_timeouts": 0,
+      "per_gb_s": 0.0,
+      "sizes_gb": [
+        1.0,
+        6.01
+      ]
+    },
+    "vol3|mac|mac.check_trap_table.Check_trap_table": {
+      "base_s": 5.2,
+      "censored_only": false,
+      "max_observed_s": 5.8,
+      "n": 4,
+      "n_timeouts": 0,
+      "per_gb_s": 0.0,
+      "sizes_gb": [
+        1.0,
+        6.01
+      ]
+    },
+    "vol3|mac|mac.ifconfig.Ifconfig": {
+      "base_s": 3.93,
+      "censored_only": false,
+      "max_observed_s": 4.5,
+      "n": 4,
+      "n_timeouts": 0,
+      "per_gb_s": 0.0,
+      "sizes_gb": [
+        1.0,
+        6.01
+      ]
+    },
+    "vol3|mac|mac.kauth_listeners.Kauth_listeners": {
+      "base_s": 3.7,
+      "censored_only": false,
+      "max_observed_s": 4.2,
+      "n": 4,
+      "n_timeouts": 0,
+      "per_gb_s": 0.0,
+      "sizes_gb": [
+        1.0,
+        6.01
+      ]
+    },
+    "vol3|mac|mac.kauth_scopes.Kauth_scopes": {
+      "base_s": 5.14,
+      "censored_only": false,
+      "max_observed_s": 5.8,
+      "n": 4,
+      "n_timeouts": 0,
+      "per_gb_s": 0.0,
+      "sizes_gb": [
+        1.0,
+        6.01
+      ]
+    },
+    "vol3|mac|mac.kevents.Kevents": {
+      "base_s": 7.56,
+      "censored_only": false,
+      "max_observed_s": 8.2,
+      "n": 4,
+      "n_timeouts": 0,
+      "per_gb_s": 0.0,
+      "sizes_gb": [
+        1.0,
+        6.01
+      ]
+    },
+    "vol3|mac|mac.list_files.List_Files": {
+      "base_s": 9.38,
+      "censored_only": false,
+      "max_observed_s": 49.4,
+      "n": 4,
+      "n_timeouts": 0,
+      "per_gb_s": 6.45,
+      "sizes_gb": [
+        1.0,
+        6.01
+      ]
+    },
+    "vol3|mac|mac.lsmod.Lsmod": {
+      "base_s": 3.76,
+      "censored_only": false,
+      "max_observed_s": 4.3,
+      "n": 4,
+      "n_timeouts": 0,
+      "per_gb_s": 0.0,
+      "sizes_gb": [
+        1.0,
+        6.01
+      ]
+    },
+    "vol3|mac|mac.malfind.Malfind": {
+      "base_s": 26.42,
+      "censored_only": false,
+      "max_observed_s": 37.3,
+      "n": 4,
+      "n_timeouts": 0,
+      "per_gb_s": 1.58,
+      "sizes_gb": [
+        1.0,
+        6.01
+      ]
+    },
+    "vol3|mac|mac.mount.Mount": {
+      "base_s": 3.62,
+      "censored_only": false,
+      "max_observed_s": 4.2,
+      "n": 4,
+      "n_timeouts": 0,
+      "per_gb_s": 0.0,
+      "sizes_gb": [
+        1.0,
+        6.01
+      ]
+    },
+    "vol3|mac|mac.netstat.Netstat": {
+      "base_s": 7.59,
+      "censored_only": false,
+      "max_observed_s": 8.1,
+      "n": 4,
+      "n_timeouts": 0,
+      "per_gb_s": 0.02,
+      "sizes_gb": [
+        1.0,
+        6.01
+      ]
+    },
+    "vol3|mac|mac.pagecache.Pagecache#all": {
+      "base_s": 27.8,
+      "censored_only": false,
+      "max_observed_s": 332.1,
+      "n": 3,
+      "n_timeouts": 0,
+      "per_gb_s": 50.65,
+      "sizes_gb": [
+        1.0,
+        6.01
+      ]
+    },
+    "vol3|mac|mac.proc_maps.Maps": {
+      "base_s": 12.84,
+      "censored_only": false,
+      "max_observed_s": 16.6,
+      "n": 4,
+      "n_timeouts": 0,
+      "per_gb_s": 0.55,
+      "sizes_gb": [
+        1.0,
+        6.01
+      ]
+    },
+    "vol3|mac|mac.proc_maps.Maps#dump": {
+      "base_s": 13.41,
+      "censored_only": false,
+      "max_observed_s": 49.5,
+      "n": 9,
+      "n_timeouts": 0,
+      "per_gb_s": 0.0,
+      "sizes_gb": [
+        1.0,
+        6.01
+      ]
+    },
+    "vol3|mac|mac.proc_maps.Maps#dump1": {
+      "base_s": 3.15,
+      "censored_only": false,
+      "max_observed_s": 3.7,
+      "n": 4,
+      "n_timeouts": 0,
+      "per_gb_s": 0.0,
+      "sizes_gb": [
+        1.0,
+        6.01
+      ]
+    },
+    "vol3|mac|mac.psaux.Psaux": {
+      "base_s": 4.62,
+      "censored_only": false,
+      "max_observed_s": 5.1,
+      "n": 4,
+      "n_timeouts": 0,
+      "per_gb_s": 0.0,
+      "sizes_gb": [
+        1.0,
+        6.01
+      ]
+    },
+    "vol3|mac|mac.pslist.PsList": {
+      "base_s": 4.51,
+      "censored_only": false,
+      "max_observed_s": 5.1,
+      "n": 4,
+      "n_timeouts": 0,
+      "per_gb_s": 0.0,
+      "sizes_gb": [
+        1.0,
+        6.01
+      ]
+    },
+    "vol3|mac|mac.pstree.PsTree": {
+      "base_s": 4.43,
+      "censored_only": false,
+      "max_observed_s": 5.0,
+      "n": 4,
+      "n_timeouts": 0,
+      "per_gb_s": 0.0,
+      "sizes_gb": [
+        1.0,
+        6.01
+      ]
+    },
+    "vol3|mac|mac.socket_filters.Socket_filters": {
+      "base_s": 3.63,
+      "censored_only": false,
+      "max_observed_s": 4.0,
+      "n": 4,
+      "n_timeouts": 0,
+      "per_gb_s": 0.0,
+      "sizes_gb": [
+        1.0,
+        6.01
+      ]
+    },
+    "vol3|mac|mac.timers.Timers": {
+      "base_s": 4.96,
+      "censored_only": false,
+      "max_observed_s": 5.8,
+      "n": 4,
+      "n_timeouts": 0,
+      "per_gb_s": 0.0,
+      "sizes_gb": [
+        1.0,
+        6.01
+      ]
+    },
+    "vol3|mac|mac.trustedbsd.Trustedbsd": {
+      "base_s": 3.48,
+      "censored_only": false,
+      "max_observed_s": 3.9,
+      "n": 4,
+      "n_timeouts": 0,
+      "per_gb_s": 0.0,
+      "sizes_gb": [
+        1.0,
+        6.01
+      ]
+    },
+    "vol3|mac|yarascan.YaraScan": {
+      "base_s": 36.73,
+      "censored_only": false,
+      "max_observed_s": 517.0,
+      "n": 5,
+      "n_timeouts": 2,
+      "per_gb_s": 79.94,
+      "sizes_gb": [
+        1.0,
+        6.01
+      ]
+    },
+    "vol3|windows|dumpfiles#vol2": {
+      "base_s": 1.21,
+      "censored_only": false,
+      "max_observed_s": 2.5,
+      "n": 43,
+      "n_timeouts": 0,
+      "per_gb_s": 0.58,
+      "sizes_gb": [
+        2.0
+      ]
+    },
+    "vol3|windows|windows.callbacks.Callbacks": {
+      "base_s": 0.0,
+      "censored_only": false,
+      "max_observed_s": 297.2,
+      "n": 16,
+      "n_timeouts": 0,
+      "per_gb_s": 6.81,
+      "sizes_gb": [
+        1.5,
+        2.0,
+        34.49
+      ]
+    },
+    "vol3|windows|windows.cmdline.CmdLine": {
+      "base_s": 0.02,
+      "censored_only": false,
+      "max_observed_s": 53.7,
+      "n": 20,
+      "n_timeouts": 0,
+      "per_gb_s": 0.83,
+      "sizes_gb": [
+        1.5,
+        2.0,
+        34.49
+      ]
+    },
+    "vol3|windows|windows.dlllist.DllList": {
+      "base_s": 0.0,
+      "censored_only": false,
+      "max_observed_s": 141.3,
+      "n": 13,
+      "n_timeouts": 0,
+      "per_gb_s": 2.9,
+      "sizes_gb": [
+        1.5,
+        2.0,
+        34.49
+      ]
+    },
+    "vol3|windows|windows.driverirp.DriverIrp": {
+      "base_s": 0.0,
+      "censored_only": false,
+      "max_observed_s": 307.2,
+      "n": 15,
+      "n_timeouts": 0,
+      "per_gb_s": 5.45,
+      "sizes_gb": [
+        1.5,
+        2.0,
+        34.49
+      ]
+    },
+    "vol3|windows|windows.driverscan.DriverScan": {
+      "base_s": 0.0,
+      "censored_only": false,
+      "max_observed_s": 233.4,
+      "n": 16,
+      "n_timeouts": 0,
+      "per_gb_s": 4.96,
+      "sizes_gb": [
+        1.5,
+        2.0,
+        34.49
+      ]
+    },
+    "vol3|windows|windows.dumpfiles.DumpFiles": {
+      "base_s": 0.52,
+      "censored_only": false,
+      "max_observed_s": 1.0,
+      "n": 2,
+      "n_timeouts": 0,
+      "per_gb_s": 0.25,
+      "sizes_gb": [
+        2.0
+      ]
+    },
+    "vol3|windows|windows.envars.Envars": {
+      "base_s": 1.43,
+      "censored_only": false,
+      "max_observed_s": 12.2,
+      "n": 12,
+      "n_timeouts": 0,
+      "per_gb_s": 0.21,
+      "sizes_gb": [
+        1.5,
+        2.0,
+        34.49
+      ]
+    },
+    "vol3|windows|windows.filescan.FileScan": {
+      "base_s": 0.0,
+      "censored_only": false,
+      "max_observed_s": 593.7,
+      "n": 19,
+      "n_timeouts": 1,
+      "per_gb_s": 15.76,
+      "sizes_gb": [
+        1.5,
+        2.0,
+        34.49
+      ]
+    },
+    "vol3|windows|windows.getsids.GetSIDs": {
+      "base_s": 1.7,
+      "censored_only": false,
+      "max_observed_s": 34.2,
+      "n": 13,
+      "n_timeouts": 0,
+      "per_gb_s": 0.62,
+      "sizes_gb": [
+        1.5,
+        2.0,
+        34.49
+      ]
+    },
+    "vol3|windows|windows.handles.Handles": {
+      "base_s": 0.0,
+      "censored_only": false,
+      "max_observed_s": 303.5,
+      "n": 14,
+      "n_timeouts": 0,
+      "per_gb_s": 8.79,
+      "sizes_gb": [
+        1.5,
+        2.0,
+        34.49
+      ]
+    },
+    "vol3|windows|windows.hashdump.Hashdump": {
+      "base_s": 1.91,
+      "censored_only": false,
+      "max_observed_s": 9.9,
+      "n": 17,
+      "n_timeouts": 0,
+      "per_gb_s": 0.21,
+      "sizes_gb": [
+        1.5,
+        2.0,
+        34.49
+      ]
+    },
+    "vol3|windows|windows.info.Info": {
+      "base_s": 1.51,
+      "censored_only": false,
+      "max_observed_s": 2.8,
+      "n": 16,
+      "n_timeouts": 0,
+      "per_gb_s": 0.0,
+      "sizes_gb": [
+        1.5,
+        2.0,
+        34.49
+      ]
+    },
+    "vol3|windows|windows.ldrmodules.LdrModules": {
+      "base_s": 0.0,
+      "censored_only": false,
+      "max_observed_s": 204.1,
+      "n": 15,
+      "n_timeouts": 0,
+      "per_gb_s": 5.84,
+      "sizes_gb": [
+        1.5,
+        2.0,
+        34.49
+      ]
+    },
+    "vol3|windows|windows.malfind.Malfind": {
+      "base_s": 0.0,
+      "censored_only": false,
+      "max_observed_s": 6583.5,
+      "n": 23,
+      "n_timeouts": 3,
+      "per_gb_s": 180.64,
+      "sizes_gb": [
+        1.5,
+        2.0,
+        34.49
+      ]
+    },
+    "vol3|windows|windows.memmap.Memmap#dump": {
+      "base_s": 30.55,
+      "censored_only": false,
+      "max_observed_s": 175.9,
+      "n": 5,
+      "n_timeouts": 0,
+      "per_gb_s": 19.39,
+      "sizes_gb": [
+        1.5,
+        2.0
+      ]
+    },
+    "vol3|windows|windows.mftscan.MFTScan": {
+      "base_s": 0.0,
+      "censored_only": false,
+      "max_observed_s": 2378.2,
+      "n": 18,
+      "n_timeouts": 3,
+      "per_gb_s": 67.87,
+      "sizes_gb": [
+        1.5,
+        2.0,
+        34.49
+      ]
+    },
+    "vol3|windows|windows.modscan.ModScan": {
+      "base_s": 0.0,
+      "censored_only": false,
+      "max_observed_s": 307.2,
+      "n": 15,
+      "n_timeouts": 0,
+      "per_gb_s": 5.28,
+      "sizes_gb": [
+        1.5,
+        2.0,
+        34.49
+      ]
+    },
+    "vol3|windows|windows.modules.Modules": {
+      "base_s": 1.43,
+      "censored_only": false,
+      "max_observed_s": 5.0,
+      "n": 13,
+      "n_timeouts": 0,
+      "per_gb_s": 0.04,
+      "sizes_gb": [
+        1.5,
+        2.0,
+        34.49
+      ]
+    },
+    "vol3|windows|windows.mutantscan.MutantScan": {
+      "base_s": 0.0,
+      "censored_only": false,
+      "max_observed_s": 285.5,
+      "n": 14,
+      "n_timeouts": 1,
+      "per_gb_s": 6.64,
+      "sizes_gb": [
+        1.5,
+        2.0,
+        34.49
+      ]
+    },
+    "vol3|windows|windows.netscan.NetScan": {
+      "base_s": 0.69,
+      "censored_only": false,
+      "max_observed_s": 297.2,
+      "n": 26,
+      "n_timeouts": 1,
+      "per_gb_s": 6.81,
+      "sizes_gb": [
+        1.5,
+        2.0,
+        34.49
+      ]
+    },
+    "vol3|windows|windows.netstat.NetStat": {
+      "base_s": 2.03,
+      "censored_only": false,
+      "max_observed_s": 26.5,
+      "n": 12,
+      "n_timeouts": 0,
+      "per_gb_s": 0.38,
+      "sizes_gb": [
+        1.5,
+        2.0,
+        34.49
+      ]
+    },
+    "vol3|windows|windows.privileges.Privs": {
+      "base_s": 1.55,
+      "censored_only": false,
+      "max_observed_s": 4.2,
+      "n": 10,
+      "n_timeouts": 0,
+      "per_gb_s": 0.05,
+      "sizes_gb": [
+        1.5,
+        2.0,
+        34.49
+      ]
+    },
+    "vol3|windows|windows.pslist.PsList": {
+      "base_s": 1.41,
+      "censored_only": false,
+      "max_observed_s": 9.6,
+      "n": 18,
+      "n_timeouts": 0,
+      "per_gb_s": 0.14,
+      "sizes_gb": [
+        1.5,
+        2.0,
+        34.49
+      ]
+    },
+    "vol3|windows|windows.pslist.PsList#dump": {
+      "base_s": 1.32,
+      "censored_only": false,
+      "max_observed_s": 5.8,
+      "n": 4,
+      "n_timeouts": 0,
+      "per_gb_s": 0.13,
+      "sizes_gb": [
+        1.5,
+        2.0,
+        34.49
+      ]
+    },
+    "vol3|windows|windows.psscan.PsScan": {
+      "base_s": 0.0,
+      "censored_only": false,
+      "max_observed_s": 297.2,
+      "n": 18,
+      "n_timeouts": 0,
+      "per_gb_s": 6.83,
+      "sizes_gb": [
+        1.5,
+        2.0,
+        34.49
+      ]
+    },
+    "vol3|windows|windows.pstree.PsTree": {
+      "base_s": 0.04,
+      "censored_only": false,
+      "max_observed_s": 55.5,
+      "n": 17,
+      "n_timeouts": 0,
+      "per_gb_s": 0.87,
+      "sizes_gb": [
+        1.5,
+        2.0,
+        34.49
+      ]
+    },
+    "vol3|windows|windows.registry.hivelist.HiveList": {
+      "base_s": 1.45,
+      "censored_only": false,
+      "max_observed_s": 2.5,
+      "n": 16,
+      "n_timeouts": 0,
+      "per_gb_s": 0.01,
+      "sizes_gb": [
+        1.5,
+        2.0,
+        34.49
+      ]
+    },
+    "vol3|windows|windows.registry.hivescan.HiveScan": {
+      "base_s": 1.41,
+      "censored_only": false,
+      "max_observed_s": 47.3,
+      "n": 14,
+      "n_timeouts": 0,
+      "per_gb_s": 1.03,
+      "sizes_gb": [
+        1.5,
+        2.0,
+        34.49
+      ]
+    },
+    "vol3|windows|windows.registry.printkey.PrintKey": {
+      "base_s": 1.92,
+      "censored_only": false,
+      "max_observed_s": 11.2,
+      "n": 18,
+      "n_timeouts": 0,
+      "per_gb_s": 0.2,
+      "sizes_gb": [
+        1.5,
+        2.0,
+        34.49
+      ]
+    },
+    "vol3|windows|windows.registry.userassist.UserAssist": {
+      "base_s": 2.15,
+      "censored_only": false,
+      "max_observed_s": 3.6,
+      "n": 14,
+      "n_timeouts": 0,
+      "per_gb_s": 0.04,
+      "sizes_gb": [
+        1.5,
+        2.0,
+        34.49
+      ]
+    },
+    "vol3|windows|windows.sessions.Sessions": {
+      "base_s": 1.55,
+      "censored_only": false,
+      "max_observed_s": 3.2,
+      "n": 11,
+      "n_timeouts": 0,
+      "per_gb_s": 0.03,
+      "sizes_gb": [
+        1.5,
+        2.0,
+        34.49
+      ]
+    },
+    "vol3|windows|windows.ssdt.SSDT": {
+      "base_s": 1.54,
+      "censored_only": false,
+      "max_observed_s": 3.1,
+      "n": 12,
+      "n_timeouts": 0,
+      "per_gb_s": 0.04,
+      "sizes_gb": [
+        1.5,
+        2.0,
+        34.49
+      ]
+    },
+    "vol3|windows|windows.svcscan.SvcScan": {
+      "base_s": 9.65,
+      "censored_only": false,
+      "max_observed_s": 69.5,
+      "n": 20,
+      "n_timeouts": 0,
+      "per_gb_s": 0.93,
+      "sizes_gb": [
+        1.5,
+        2.0,
+        34.49
+      ]
+    },
+    "vol3|windows|windows.symlinkscan.SymlinkScan": {
+      "base_s": 0.0,
+      "censored_only": false,
+      "max_observed_s": 285.5,
+      "n": 15,
+      "n_timeouts": 1,
+      "per_gb_s": 7.27,
+      "sizes_gb": [
+        1.5,
+        2.0,
+        34.49
+      ]
+    },
+    "vol3|windows|windows.thrdscan.ThrdScan": {
+      "base_s": 0.0,
+      "censored_only": false,
+      "max_observed_s": 453.0,
+      "n": 14,
+      "n_timeouts": 0,
+      "per_gb_s": 12.38,
+      "sizes_gb": [
+        1.5,
+        2.0,
+        34.49
+      ]
+    },
+    "vol3|windows|windows.vadinfo.VadInfo": {
+      "base_s": 10.58,
+      "censored_only": false,
+      "max_observed_s": 5361.3,
+      "n": 15,
+      "n_timeouts": 3,
+      "per_gb_s": 155.13,
+      "sizes_gb": [
+        1.5,
+        2.0,
+        34.49
+      ]
+    },
+    "vol3|windows|windows.vadinfo.VadInfo#dump": {
+      "base_s": 31.95,
+      "censored_only": false,
+      "max_observed_s": 60.4,
+      "n": 3,
+      "n_timeouts": 0,
+      "per_gb_s": 0.26,
+      "sizes_gb": [
+        1.5,
+        2.0,
+        34.49
+      ]
+    },
+    "vol3|windows|windows.vadinfo.VadInfo#dump1": {
+      "base_s": 1.41,
+      "censored_only": false,
+      "max_observed_s": 2.3,
+      "n": 100,
+      "n_timeouts": 0,
+      "per_gb_s": 0.01,
+      "sizes_gb": [
+        1.5,
+        2.0,
+        34.49
+      ]
+    },
+    "vol3|windows|windows.vadinfo.VadInfo#pid": {
+      "base_s": 2.27,
+      "censored_only": false,
+      "max_observed_s": 4.4,
+      "n": 1,
+      "n_timeouts": 0,
+      "per_gb_s": 0.06,
+      "sizes_gb": [
+        34.49
+      ]
+    },
+    "vol3|windows|windows.vadyarascan.VadYaraScan": {
+      "base_s": 8.64,
+      "censored_only": false,
+      "max_observed_s": 14.8,
+      "n": 12,
+      "n_timeouts": 0,
+      "per_gb_s": 0.0,
+      "sizes_gb": [
+        1.5,
+        2.0,
+        34.49
+      ]
+    }
+  },
+  "retry_factor": 2.5,
+  "safety_factor": 3.0,
+  "slack_s": 60,
+  "version": 1
+}

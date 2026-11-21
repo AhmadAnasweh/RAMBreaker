@@ -1,141 +1,73 @@
 # Changelog
 
-All notable changes to RAMBreaker are recorded here.
+RAMBreaker v2 is the Windows edition: a port and upgrade of the original
+Linux RAMBreaker/CresCent toolkit (v6.2, git tag `v6.2`; its own history is in
+`src/CHANGELOG.md`). Details of each change are in `README.md`.
 
-## Unreleased
+## v2.5.0 (2026-11-18): protected output
 
-## v6.2 — 2026-07-16
+- Every extracted file (Extraction workspace: files, process executables, DLLs
+  and memory, memory regions; the threat-intel dump) is written straight into
+  its own AES-256 password ZIP, password `infected` (changeable). Volatility 3
+  writes the encrypted ZIP itself, so the plain file never touches the disk and
+  the virus scanner cannot quarantine the evidence.
+- Manifests and the results table still show size, type and SHA-256/SHA-1/MD5
+  of the file inside; the threat-intel YARA scan decrypts in memory only.
+- Switch "Protect extracted files" in the Extraction workspace and the Threat
+  Intel dialog; CLI `--no-protect` and `--zip-password`.
 
-A capability release on top of v6.1's reliability work — three new features and
-the test hook switched on. The headline is **symbol self-sufficiency**: for
-modern Linux kernels the tool can now build Volatility symbols from the BTF +
-kallsyms inside the image itself, so a kernel that is too new, custom-compiled,
-or absent from every repo still resolves — offline and exact. Plus fileless-
-injection correlation and live memory-region (VAD) dumping.
+## v2.4.1 (2026-11-18): plugin dependencies
 
-### Added
-- **In-image BTF symbol builder** (`btf2isf`): reconstructs a Volatility3 Linux
-  ISF entirely from the BTF type info + kallsyms symbol table embedded **inside**
-  the memory image — no matching vmlinux, debug package, or repo lookup. Pure
-  Python: parses BTF → user/base/enum types (flattening anonymous members, naming
-  typedef'd anonymous structs so Vol3 extensions attach), decodes token-compressed
-  kallsyms (heuristic `.rodata` scan **and** deterministic VMCOREINFO-address
-  paths), converts runtime→link-time addresses, and types the well-known globals
-  Vol3 dereferences — structs, scalars, pointers (e.g. `module_kset`), and linker
-  char-arrays (`_text`/`_etext`/…) so lsmod/check_modules/tty_check/capabilities
-  all resolve. Handles LiME and flat raw/VMware dumps (auto-detects the
-  <4 GB PCI hole) and signed/negative `phys_base`. Wired into
-  `linux_resolver.resolve_symbols` as `_try_btf2isf_build()`, placed **before** the
-  multi-GB dbgsym download: a kernel with BTF (~5.8+) resolves instantly, offline,
-  and exactly — even when it is absent from every repo (too new, custom-compiled,
-  or pruned upstream) — and falls through to the dbgsym route when the kernel has
-  no BTF (`CONFIG_DEBUG_INFO_BTF` off). Also runs in the >25-banner "banner-cache"
-  bail path, where it is ideal (reads VMCOREINFO + BTF directly, ignores banners).
-  Still runs standalone (`python3 modules/btf2isf.py <image>`). Validated
-  end-to-end through the full resolver on Ubuntu 5.15.0-41, Ubuntu 6.5.0-41
-  (VMware `.vmem`), and Kali 6.12.13. Linux-only by nature (macOS/XNU has no BTF).
-  Tests: +14 (`166` total) — a hand-crafted BTF blob pins the parser, anonymous-
-  member flattening, typedef-anonymous naming, and kallsyms token decode + address
-  arithmetic; plus the resolver glue (`_try_btf2isf_build`): version parsed from
-  the ISF filename, no-BTF fall-through, and non-Linux short-circuit (no image).
-- **Fileless-injection correlator** (`injection_correlator`): correlates the
-  injected-memory plugin (malfind) with the module-list plugin (ldrmodules /
-  proc.Maps) to flag reflective/manual code injection — HIGH (injected + loader-
-  unregistered), MEDIUM (injected alone), LOW (unregistered+unbacked exec region).
-  Per-OS parsers (Windows/Linux/macOS) → one engine; MZ/ELF/Mach-O header checks;
-  JSON preferred + raw-text fallback (incl. Vol2 malfind regrouping). Standalone
-  CLI (`--os`/`--auto`, `--injected`/`--modules`, `--pid`, `--min-confidence`,
-  `--export json|csv|both`) and a pipeline stage writing
-  `json/injection_correlation.json` (+ a `.txt` in the run root), wired into the
-  export pack. New **Injection** tab in all three HTML reports. Tests: +11 (`152` total).
-- **VAD memory-region dumper** (`dump-vad`, module `vad_dumper`): dump a process's
-  LIVE in-memory regions — heaps, stacks, mapped data, and injected code — instead
-  of just its on-disk PE (`vad_dumps/` + `vad_dump_report.txt`). Windows VAD
-  (`vadinfo`/`vaddump`), Linux/macOS memory maps (`proc.Maps`/`proc_maps`). Each
-  region is hashed; RWX and executable-private regions are flagged as possible
-  injection (observations, not verdicts; `PAGE_EXECUTE_WRITECOPY` correctly not
-  flagged). Wired into the CLI, menu `[V]`, and DFIR/`dump-all`. Validated across
-  the RAMDUMPS image set (Windows Vol2+Vol3, Linux, macOS). Tests: +8 (`141` total).
+- A plugin that reads another plugin's structures waits for it, and is skipped
+  with a Retry button only when that plugin really failed. A timeout, a process
+  Windows could not start, or symbol tables still being built skip nothing.
+- `psscan`, `psxview` and `modscan` never wait; `netscan` -> `netstat` is one-way.
 
-### Dev
-- Enabled the git pre-commit hook in this working tree
-  (`git config core.hooksPath .githooks`) and verified it fires: every commit now
-  runs Tier-A (`166`) + the canary suite (`21`) and blocks on failure. Still a
-  per-clone step — a fresh clone must run the same one-liner to turn it on.
+## v2.4.0 (2026-11-16, re-released 2026-11-17)
 
-## v6.1 — 2026-07-11
+- Faster: Volatility 2 extras in parallel lanes (Full DFIR on a 2 GB Win7 image
+  34 min 47 s -> 19 min 45 s), text scanners in parallel with the IOC scan
+  (96 s -> 47 s), one-pass ASCII + UTF-16 strings, Linux `library_list`
+  807 s -> 39 s.
+- Threat intel: files lost to the 260-character path limit are recovered
+  (989 -> 1,441 files on the test image); a batch continues after a failing
+  object; databases quarantined by antivirus are reported; memory-capture tools
+  flagged by VirusTotal get a context note.
+- Optional local hash databases: MalwareBazaar, VirusShare MD5 lists, NIST NSRL
+  known files.
+- Dump queue in the GUI: add several dumps, start the queue, get a summary.
+- VMware `.vmem` without its `.vmss`/`.vmsn`: the guest memory map is rebuilt
+  from the guest's own page tables and applied to Volatility 3 and 2.
+- No Volatility 2 probe for Windows builds newer than its profiles.
 
-A hardening + reliability release focused on making failures **loud, diagnosable,
-and honest** — especially the silent ones that let a broken run masquerade as a
-clean one — plus the first real test safety net and a security pass on downloads
-and the HTML report.
+## v2.3.0 (2026-11-15): per-plugin retry
 
-### Added
-- **Run-health guard** (`modules/run_health.py`): assesses a finished extraction
-  from its `json/` + local log — process corroboration (pslist vs psscan vs
-  pstree), empty-key-tab detection, a failure taxonomy (symbol-missing /
-  struct-mismatch / timeout / expected-nonbug / …), and a health banner in
-  `SUMMARY.txt` + `run_health.json`. Wired append-only into all three OS extractors.
-- **Local crash report** (`modules/crash_report.py`, Step 1): on a real failure,
-  writes a scrubbed, whitelisted `crash_report.json` failure-fingerprint (no image
-  content; kernel banner reduced to version+distro; addresses/paths redacted) an
-  analyst can hand to the tool author.
-- **Opt-in crash-report transport** (Step 2): default-OFF telemetry
-  (`CRESCENT_TELEMETRY` / `--no-telemetry`), `install_id`, dedup-by-fingerprint,
-  bounded best-effort `send()`, `sample_payload()` for consent. Nothing leaves
-  without explicit opt-in and an endpoint.
-- **Advisory corroboration** (blind spot ③): flags a small high-signal set
-  (Windows `svcscan`/`modules`, Linux/macOS `lsof`) that ran but returned nothing
-  — WARN, worded as an observation, never a verdict.
-- **Tier-B canary** (`tests/run_canary.py` + `tests/fixtures/canary/`): drives the
-  REAL pipeline (subprocess → parse → demotion → sidecar → resume → run_health →
-  crash_report → HTML report) against a fake Vol3 stub, no memory image needed.
-- **Pre-commit hook** (`.githooks/pre-commit`): runs Tier-A + canary before every
-  commit; enable with `git config core.hooksPath .githooks`.
+- A plugin that failed, timed out, was skipped or never ran gets a Retry button
+  in the run monitor, with its own time limit (or none). Works on old cases too;
+  a retry pressed during an analysis is queued. CLI `retry`.
 
-### Fixed
-- **Silent new-kernel failures** (①): a Linux/macOS plugin that exits 0 with an
-  empty result while logging a systemic struct/symbol exception is now demoted to
-  a real failure (was counted as a clean-empty success, its diagnostic stderr
-  discarded).
-- **Resume cache-poisoning** (②): a failed plugin leaves a `<name>.json.error`
-  sidecar so a re-run re-executes it instead of trusting stale/partial output.
-- **Linux/macOS process corroboration** (H1): `linux.psscan` now runs (was absent,
-  so the Bug-#10 pool-scan-vs-linked-list check could never fire on Linux); a
-  `psaux` fallback covers macOS; the "psscan ≫ pslist" WARN is gated to Windows
-  (normal on Linux).
-- **`linux_kernel.json` on the cached-symbol path**: persisted even when symbols
-  are already warm, so `crash_report`/`system_info` get the kernel/distro.
+## v2.2.0 (2026-11-15): DFIR + Threat Intel
 
-### Security
-- **HTML report XSS** (H4): the embedded data blob is now encoded via
-  `safe_js_json` (`< > &` + U+2028/9 → `\uXXXX`), closing script-context breakout
-  from attacker-controlled memory strings; regression-tested end-to-end.
-- **Download integrity** (H2/H3): debug-package downloads upgraded to HTTPS where
-  supported and verified by archive magic + sha256 before extraction
-  (`dbgsym_builder`); Volatility symbol zips verified + optionally pinnable
-  (`installer.verify_symbol_zip` / `PINNED_SYMBOL_SHA256`).
-- **Transport payload** (L1): the `other` failure category's free-text reason is
-  dropped from the sent payload (kept only its category).
+- New preset: Full DFIR, then every file and process executable is dumped,
+  SHA-256 hashed and checked with YARA (YARA Forge rules), bundled offline feeds
+  and optional downloaded feeds, and VirusTotal if you enter a key. Only hashes,
+  public IPs and domains are looked up; files are never uploaded.
 
-### Testing
-- Tier-A golden suite (`tests/run_tests.py`): **133 assertions**, zero-dependency,
-  no images — pins run-health, crash-report/scrub, telemetry (incl. a real
-  localhost round-trip), download integrity, and the report XSS encoding.
+## v2.1.0 (2026-11-13): every CLI feature in the GUI
 
-### Docs (`claude context/`)
-- `TOOL_WEAK_SPOTS.md` (whole-codebase weak-spot analysis, H1–H4 fixed),
-  `FUTURE_CRASH_REPORTING.md` (Steps 1–2 built + new-kernel blind-spot analysis),
-  `PROJECT_ASSESSMENT.md` (honest strategic assessment: the idea, the new-kernel
-  ceiling, Docker, a community ISF commons, struct-mismatch, and the verdict).
+- Extraction workspace: search and extract files, process executables/DLLs/
+  memory, memory regions (whole process or selected regions), string hunt,
+  export pack.
+- Presets, plugin category and fast mode; animated help guides for each.
+- Native-crash log and a run-health view that shows each plugin's latest outcome.
 
-### Known limitations (honest)
-Bleeding-edge kernels can still fail at the Volatility layer (struct-mismatch is
-upstream's to fix); this release makes such failures **diagnosable**, not
-impossible. macOS remains the weakest OS. See `PROJECT_ASSESSMENT.md`.
+## v2.0.0 (2026-11-08): Windows port
 
-## v6.0
-
-OS-split refactor of v5.0 — every multi-OS module became
-`<name>.{windows,linux,mac}.py` behind a thin `importlib` dispatcher; added the
-String Hunt module. See `claude context/ARCHITECTURE_V6.md`.
+- Runs natively on Windows 10/11, no WSL or Docker; one folder, start
+  `RAMBreaker.exe`. Volatility 3 2.28.2 and Volatility 2 2.6.1 bundled.
+- Desktop GUI (PySide6) with a case navigator, live log, help on every control,
+  a tour, and dark and light themes.
+- Linux symbol ladder: community ISF, distro debug packages via dwarf2json,
+  BTF-to-ISF from inside the dump, Volatility 2 profile fallback.
+- Dynamic per-dump plugin timeouts, a built-in Sigma engine, 24 new IOC types,
+  an IOC checker for the raw dump, and e-mail artefact extraction.

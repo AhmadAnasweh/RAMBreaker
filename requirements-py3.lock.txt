@@ -1,0 +1,13 @@
+﻿capstone==5.0.9
+hexdump==3.3
+leechcorepyc==2.23.3
+pefile==2024.8.26
+pillow==10.4.0
+pyahocorasick==2.3.1
+pycryptodome==3.24.1
+python-evtx==0.8.1
+PyYAML==6.0.3
+-e runtime\volatility3
+yara-python==4.5.4
+zstandard==0.25.0
+numpy==2.5.4

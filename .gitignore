@@ -1,67 +1,20 @@
-# RAMBreaker / CresCentC — version-control the TOOL only.
-# This is a forensics tool: analysis output is evidence-derived (carved files,
-# strings, NTLM hashes, PII from a target's RAM) and must NEVER enter git.
-# Strategy: whitelist tool code by ignoring everything evidence/scratch-shaped,
-# wherever it appears in the tree (in case someone runs with `-o .`).
-
-# --- Scratch / working dirs (recreated on demand) ---
+# Portable runtimes, build and release output (see README "Building from source")
+/runtime/
+/build/
+/dist/
+/release/
+# Per-machine state and case data: never commit evidence
+/output/
+/logs/
+/cache/
+/work/
+/config/gui_settings.json
+/config/secrets.dat
+/config/private_terms.txt
+/threat_intel_db/downloaded/
+/yara_rules/yara-forge/_downloaded/
 CresCentC_work/
 CresCentC_RESULTS/
-*_RESULTS/
-_isf_build/
-
-# --- Internal dev/session notes, not part of the published tool ---
-claude context/
-
-# --- Memory images (never commit evidence) ---
-*.raw
-*.mem
-*.lime
-*.vmem
-*.vmss
-*.vmsn
-*.dmp
-*.core
-*.img
-*.crash
-
-# --- Analysis output (evidence-derived) ---
-dumped_files/
-dumped_processes/
-**/json/
-**/txt/
-**/iocs/
-**/report.html
-**/SUMMARY.txt
-**/correlation_report.txt
-**/network_map.txt
-**/process_tree.txt
-**/mitre_report.txt
-**/strings*.txt
-**/*.log
-crescent_toolkit.log
-
-# --- Python ---
 __pycache__/
-*.py[cod]
-*.egg-info/
-.venv/
-venv/
-.pytest_cache/
-
-# --- OS cruft ---
-.DS_Store
-Thumbs.db
-
-# --- Explicitly KEEP tool data that would otherwise look ignorable ---
-!data/linux_symbol_catalogue.json.xz
-!tests/fixtures/**
-# ...but fixtures are INPUTS: never track artifacts a test run writes into them.
-tests/fixtures/**/run_health.json
-tests/fixtures/**/crash_report.json
-tests/fixtures/**/SUMMARY.txt
-run_health.json
-crash_report.json
-
-# stray personal artifact — the author's own disk layout, not tool data
-*sda-parttable-backup*
+*.pyc
+venv*/
