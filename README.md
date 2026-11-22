@@ -273,6 +273,15 @@ of its run and is zipped right after. A threat-intel dump from an earlier
 version is zipped when it is reused. The older menu commands (`dump-files`,
 `dump-procs`, `dump-vad`, `dump-all`) still write plain files.
 
+**v2.5.1 (2026-11-22): the mouse wheel no longer changes settings by accident.**
+Rolling the wheel over a drop-down or number box (in the Case setup panel:
+Preset, Plugin category, Engine, Parallel jobs, RAM / jobs mode; and in
+Settings, Threat Intel, Retry and the Extraction workspace) used to change its
+value while you were only trying to scroll the panel. Now the wheel always
+scrolls the panel and never changes a value. Change a value by clicking it,
+typing, the arrow buttons or the keyboard; an open drop-down list still scrolls
+with the wheel.
+
 Tuning switches (environment variables, normally not needed):
 `RAMBREAKER_VOL2_LANES`, `RAMBREAKER_TI_LANES` (number of parallel Volatility
 runs) and `RAMBREAKER_SERIAL_SCAN=1` (old single-process text scan).

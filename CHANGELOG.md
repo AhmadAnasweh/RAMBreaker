@@ -4,7 +4,7 @@ RAMBreaker v2 is the Windows edition: a port and upgrade of the original
 Linux RAMBreaker/CresCent toolkit (v6.2, git tag `v6.2`; its own history is in
 `src/CHANGELOG.md`). Details of each change are in `README.md`.
 
-## Unreleased
+## v2.5.1 (2026-11-22): mouse wheel fix
 
 - GUI: the mouse wheel over a drop-down, number box or slider (Case setup panel,
   Settings, Threat Intel, Retry, Extraction) now scrolls the panel behind it and

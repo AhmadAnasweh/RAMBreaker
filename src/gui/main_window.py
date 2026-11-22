@@ -35,7 +35,7 @@ sys.path.insert(0, str(SRC))
 from modules import platform_compat  # noqa: E402
 
 APP = "RAMBreaker"
-VERSION = "2.5.0"
+VERSION = "2.5.1"
 
 PRESETS = [
     ("Standard (recommended)", "core", "full"),
