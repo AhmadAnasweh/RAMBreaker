@@ -2,8 +2,9 @@
 
 from PySide6.QtCore import QEvent, QObject, QPoint, QSortFilterProxyModel, Qt, QTimer, Signal
 from PySide6.QtGui import QColor, QCursor, QPainter, QPen
-from PySide6.QtWidgets import (QApplication, QFrame, QHBoxLayout, QLabel, QSizePolicy,
-                               QToolButton, QVBoxLayout, QWidget, QTextBrowser)
+from PySide6.QtWidgets import (QAbstractSpinBox, QApplication, QComboBox, QFrame, QHBoxLayout,
+                               QLabel, QSizePolicy, QSlider, QToolButton, QVBoxLayout, QWidget,
+                               QTextBrowser)
 
 from gui import help_registry, icons
 
@@ -210,6 +211,42 @@ class HelpMode(QObject):
                     return False
                 w = w.parentWidget()
         return False
+
+
+class WheelGuard(QObject):
+    """Hovering is not choosing: the mouse wheel over a drop-down, number box or
+    slider scrolls the panel behind it and never changes the value.
+
+    Qt's default gives the wheel (and keyboard focus) to whatever control is
+    under the cursor, so scrolling down the Case setup panel changed Preset,
+    Engine, Parallel jobs ... as they passed under the mouse. Values still change
+    by clicking, typing, the arrow buttons or the keyboard; an OPEN drop-down list
+    is a separate popup and still scrolls with the wheel.
+
+    How: on Polish (once per control, before it is first shown) Qt's WheelFocus
+    becomes StrongFocus, so the wheel no longer focuses it; on Wheel the event is
+    marked ignored and filtered out, which makes QApplication pass the same real
+    wheel event on to the parent widgets - the scroll area then scrolls."""
+    GUARDED = (QComboBox, QAbstractSpinBox, QSlider)     # not QScrollBar: it must scroll
+    _inst = None
+
+    def eventFilter(self, obj, ev):
+        t = ev.type()
+        if t == QEvent.Wheel:
+            if isinstance(obj, self.GUARDED):
+                ev.ignore()
+                return True
+        elif t == QEvent.Polish:
+            if isinstance(obj, self.GUARDED) and obj.focusPolicy() == Qt.WheelFocus:
+                obj.setFocusPolicy(Qt.StrongFocus)
+        return False
+
+
+def install_wheel_guard() -> None:
+    """Install the WheelGuard on the application once (idempotent)."""
+    if WheelGuard._inst is None:
+        WheelGuard._inst = WheelGuard()
+        QApplication.instance().installEventFilter(WheelGuard._inst)
 
 
 class Spinner(QWidget):

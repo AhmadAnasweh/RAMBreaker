@@ -1610,6 +1610,91 @@ def test_gui_mode_split():
     w.close()
 
 
+def test_gui_wheel_guard():
+    """Mouse wheel over a Case-setup drop-down / number box scrolls the panel and never
+    changes the value (Qt's default changed Preset, Engine, Parallel jobs on hover)."""
+    try:
+        os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+        from PySide6.QtCore import QPoint, QPointF, QRect, Qt
+        from PySide6.QtTest import QTest
+        from PySide6.QtWidgets import QApplication, QFrame, QScrollArea
+    except Exception:
+        print("  SKIP  gui wheel guard (PySide6 not installed)")
+        return
+    print("[gui wheel guard]")
+    app = QApplication.instance() or QApplication([])
+    from gui import main_window as mw, theme, widgets
+    widgets.set_theme(theme.palette("dark"))
+    widgets.install_wheel_guard()
+    widgets.install_wheel_guard()                        # idempotent
+    sp = mw.SetupPanel(dict(mw.DEFAULT_SETTINGS))
+    sc = QScrollArea()
+    sc.setWidget(sp)
+    sc.setWidgetResizable(True)
+    sc.setFrameShape(QFrame.NoFrame)
+    sc.resize(400, 300)                                  # short: the panel has to scroll
+    sc.show()
+    QTest.qWait(50)
+    bar, vp = sc.verticalScrollBar(), sc.viewport()
+
+    def aim(w):
+        """Scroll w into view; the centre of its visible part (the panel can be wider than the view)."""
+        sc.horizontalScrollBar().setValue(0)
+        sc.ensureWidgetVisible(w, 0, 0)
+        QTest.qWait(20)
+        r = QRect(w.mapTo(vp, QPoint(0, 0)), w.size()).intersected(vp.rect())
+        return vp.mapTo(sc, r.center())
+
+    def wheel(win, at):
+        """One real (spontaneous) wheel notch down at `at` in window `win`."""
+        QTest.mouseMove(win, at)
+        QTest.wheelEvent(win, QPointF(at), QPoint(0, -120))
+        QTest.qWait(20)
+
+    def value(w):
+        return w.currentIndex() if hasattr(w, "currentIndex") else w.value()
+
+    got = {}
+    for name in ("preset", "category", "engine", "jobs", "speed"):
+        w = getattr(sp, name)
+        bar.setValue(0)
+        at = aim(w)
+        v0, b0 = value(w), bar.value()
+        wheel(sc.windowHandle(), at)
+        got[name] = (value(w) == v0, bar.value() > b0 or b0 == bar.maximum(), w.hasFocus())
+    check("wheel over setup drop-downs / jobs box: value kept, panel scrolls, no focus grab",
+          all(k and s and not f for k, s, f in got.values()), got)
+    sp.engine.setFocus(Qt.MouseFocusReason)
+    bar.setValue(0)
+    at = aim(sp.engine)
+    i0, b0 = sp.engine.currentIndex(), bar.value()
+    wheel(sc.windowHandle(), at)
+    check("wheel over a clicked-into drop-down still scrolls the panel, value kept",
+          sp.engine.currentIndex() == i0 and bar.value() > b0, (i0, sp.engine.currentIndex(), b0, bar.value()))
+    QTest.keyClick(sp.engine, Qt.Key_Down)
+    check("keyboard still changes a focused drop-down", sp.engine.currentIndex() == i0 + 1)
+    sp.known.setChecked(True)                            # editable Vol2 profile box (20 items)
+    QTest.qWait(50)
+    sp.profile.setMaxVisibleItems(5)
+    sp.profile.showPopup()
+    QTest.qWait(50)
+    pop, lv = QApplication.activePopupWidget(), sp.profile.view()
+    lb0 = lv.verticalScrollBar().value()
+    wheel(pop.windowHandle(), lv.viewport().mapTo(pop, lv.viewport().rect().center()))
+    check("an OPEN drop-down list still scrolls with the wheel",
+          lv.verticalScrollBar().value() > lb0 and sp.profile.currentIndex() == 0,
+          (lb0, lv.verticalScrollBar().value()))
+    sp.profile.hidePopup()
+    d = mw.SettingsDialog(dict(mw.DEFAULT_SETTINGS))   # a dialog built later is covered too
+    d.show()
+    QTest.qWait(50)
+    t0 = d.tmo.value()
+    wheel(d.windowHandle(), d.tmo.mapTo(d, d.tmo.rect().center()))
+    check("Settings dialog: wheel keeps the timeout box", d.tmo.value() == t0 and not d.tmo.hasFocus())
+    d.close()
+    sc.close()
+
+
 def test_threat_intel():
     """v2.2 DFIR + Threat Intel: feeds, matching, VT client (mock server), hash quality,
     YARA, shortlist, secret store, report tab, bulk dump attribution."""
@@ -2891,7 +2976,7 @@ def main():
               test_timeout_model_formats, test_ioc_check_attribution_state,
               test_gui_fast_sort, test_linux_elfs_labels, test_linux_malfind_skip_fix,
               test_vol2_resume_clean_empty, test_gui_extract_job_done, test_gui_mode_split,
-              test_threat_intel, test_gui_threat_intel, test_safe_zip, test_dependency_gate, test_plugin_retry,
+              test_gui_wheel_guard, test_threat_intel, test_gui_threat_intel, test_safe_zip, test_dependency_gate, test_plugin_retry,
               test_v24_speed_and_fixes, test_v24_local_hash_databases,
               test_vmem_gap):
         try:

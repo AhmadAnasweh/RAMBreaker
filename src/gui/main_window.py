@@ -25,7 +25,8 @@ from gui.ram_anim import RamAnimation
 from gui.results_view import ResultsView
 from gui.retry_dialog import RetryDialog
 from gui.runner import AnalysisRunner
-from gui.widgets import HelpButton, HelpMode, HelpPopup, Spinner, helped, set_theme, with_help
+from gui.widgets import (HelpButton, HelpMode, HelpPopup, Spinner, helped, install_wheel_guard,
+                         set_theme, with_help)
 
 SRC = Path(__file__).resolve().parent.parent
 if getattr(sys, "frozen", False):
@@ -758,6 +759,7 @@ class TourOverlay(QWidget):
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
+        install_wheel_guard()            # before any control exists: wheel scrolls, never changes values
         self.s = load_settings()
         self.c = theme.palette(self.s["theme"])
         set_theme(self.c)
