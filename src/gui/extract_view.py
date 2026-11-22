@@ -15,7 +15,7 @@ from typing import Any, Callable, Dict, List, Optional, Set
 
 from PySide6.QtCore import (QAbstractTableModel, QModelIndex, Qt,
                             QThread, QTimer, Signal)
-from PySide6.QtWidgets import (QAbstractItemView, QButtonGroup, QCheckBox, QComboBox,
+from PySide6.QtWidgets import (QAbstractItemView, QButtonGroup, QCheckBox,
                                QFileDialog, QFrame, QGridLayout, QHBoxLayout, QHeaderView,
                                QLabel, QLineEdit, QListWidget, QMessageBox, QPlainTextEdit,
                                QProgressBar, QPushButton, QRadioButton, QSplitter, QTableView,
@@ -23,7 +23,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QButtonGroup, QCheckBox, QComb
 
 from gui import icons
 from gui.runner import AnalysisRunner
-from gui.widgets import FastSortProxy, HelpButton, Spinner, THEME, helped
+from gui.widgets import ComboBox, FastSortProxy, HelpButton, Spinner, THEME, helped
 
 import sys  # noqa: E402
 
@@ -370,7 +370,7 @@ class ExtractView(QWidget):
         self.f_search.setPlaceholderText(r"Search name or path, e.g.  .evtx   \Users\   hosts   (all words must match)")
         self.f_search.setClearButtonEnabled(True)
         helped(self.f_search, "x.f.search")
-        self.f_ext = QComboBox()
+        self.f_ext = ComboBox()
         self.f_ext.setMinimumWidth(130)
         helped(self.f_ext, "x.f.ext")
         self.f_rec = QCheckBox("Only recoverable")
@@ -584,7 +584,7 @@ class ExtractView(QWidget):
         self.r_title.setObjectName("H2")
         self.r_open = btn("Open folder", "x.r.open", "folder-open")
         self.r_man = btn("Open manifest", "x.r.manifest", "file-text")
-        self.r_hist = QComboBox()
+        self.r_hist = ComboBox()
         self.r_hist.setMinimumWidth(260)
         helped(self.r_hist, "x.r.history")
         v.addLayout(row(self.r_title, None, self.r_hist, "x.r.history", self.r_open, self.r_man, "x.r.table"))

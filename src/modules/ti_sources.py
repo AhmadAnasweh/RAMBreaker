@@ -19,6 +19,7 @@ to the user's own PC by the update, for the user's own defensive use.
 """
 
 import csv
+import http.client
 import io
 import ipaddress
 import json
@@ -26,7 +27,9 @@ import logging
 import os
 import re
 import shutil
+import threading
 import time
+import urllib.error
 import urllib.request
 import zipfile
 from pathlib import Path
@@ -142,6 +145,9 @@ NSRL_INDEX = ("https://www.nist.gov/itl/ssd/software-quality-group/national-soft
               "nsrl-download/current-rds")
 BY_ID = {s["id"]: s for s in SOURCES}
 STALE_DAYS = 7          # older than this: the GUI suggests an update
+# v2.6: free disk space an optional database needs while it is downloaded and built
+# (download + database + temporary files); the GUI warns before starting with less.
+NEED_FREE_GB = {"malwarebazaar_full": 1, "virusshare": 2, "nsrl_delta": 2, "nsrl_full": 120}
 
 
 # --------------------------------------------------------------------- places
@@ -208,6 +214,15 @@ def status() -> List[Dict[str, Any]]:
         # and the run then reported it as "not downloaded".
         dl_meta = _read_meta("downloaded").get(s["id"]) or {}
         removed = bool(p is None and dl_meta.get("fetched_epoch"))
+        # v2.6: what Delete would remove. The NSRL rows share one file: a row only owns
+        # it when it has its own record (else Delete on an uninstalled row would remove
+        # the other row's database); leftovers of an interrupted update always count.
+        files = downloaded_files(s)
+        if s["fmt"] == "nsrl":
+            owned = ([files[0]] if p is not None and where == "downloaded" else []) + files[1:]
+        else:
+            owned = files
+        dl_bytes = sum(_size(f) for f in owned)
         out.append({"id": s["id"], "name": s["name"], "what": s["what"], "licence": s["licence"],
                     "bundled": s["bundled"], "needs_key": bool(s.get("key")), "why": s["why"],
                     "homepage": s["homepage"], "present": p is not None, "where": where,
@@ -217,8 +232,98 @@ def status() -> List[Dict[str, Any]]:
                     "stale": bool(p is not None and age is not None and age > STALE_DAYS and s["fmt"] != "nsrl"),
                     "removed": removed, "optional": bool(s.get("optional")), "size": s.get("size", ""),
                     "removed_fetched": time.strftime("%Y-%m-%d", time.localtime(dl_meta["fetched_epoch"]))
-                    if removed else ""})
+                    if removed else "",
+                    # v2.6: size on disk, what Delete can remove, a cancelled multi-file update
+                    "disk_bytes": _size(p) if p is not None else 0,
+                    "downloaded": bool(removed or any(f.exists() for f in owned)),
+                    "downloaded_bytes": dl_bytes,
+                    "partial": bool(where == "downloaded" and m.get("partial")),
+                    "need_free": NEED_FREE_GB.get(s["id"], 0) * 1024 ** 3})
     return out
+
+
+# --------------------------------------------------------------------- disk (v2.6)
+def _size(p: Optional[Path]) -> int:
+    """Bytes a file or a folder (all files inside) uses; 0 when missing."""
+    try:
+        if p is None or not p.exists():
+            return 0
+        if p.is_dir():
+            return sum(f.stat().st_size for f in p.rglob("*") if f.is_file())
+        return p.stat().st_size
+    except OSError:
+        return 0
+
+
+def downloaded_files(src: Dict[str, Any]) -> List[Path]:
+    """Everything an update of `src` leaves on disk: the downloaded copy first, then the
+    temporary leftovers of an interrupted update. Never the bundled copy."""
+    if src["fmt"] == "yara":
+        base = rules_root() / "yara-forge" / "_downloaded" / src["file"]
+    else:
+        base = db_root() / "downloaded" / src["file"]
+    out = [base] + [base.with_name(base.name + x) for x in (".part", ".old", ".zip.part")]
+    if src["fmt"] == "nsrl":
+        for kind in ("modern_minimal", "modern_minimal_delta"):
+            out += [base.with_name(f"nsrl_{kind}.zip.part"), base.with_name(f"nsrl_{kind}.unpack")]
+    return out
+
+
+def disk_free() -> Tuple[int, str]:
+    """(free bytes, drive) of the disk that holds the databases; (-1, '') if unknown."""
+    p = db_root()
+    while not p.exists() and p.parent != p:
+        p = p.parent
+    try:
+        return shutil.disk_usage(str(p)).free, (p.drive or p.anchor)
+    except OSError:
+        return -1, ""
+
+
+def space_used(rows: Optional[List[Dict[str, Any]]] = None) -> int:
+    """Bytes all local database copies use together (a shared file counted once)."""
+    seen, total = set(), 0
+    for r in (rows if rows is not None else status()):
+        if r["present"] and r["path"] and r["path"] not in seen:
+            seen.add(r["path"])
+            total += r["disk_bytes"]
+    return total
+
+
+def delete(ids: Iterable[str]) -> List[Dict[str, Any]]:
+    """Delete the DOWNLOADED copies of the chosen databases (v2.6, only on the user's
+    request). Bundled copies ship with RAMBreaker and are never deleted: where one
+    exists it is used again. The source's record in downloaded/_meta.json goes too, so
+    the table does not report the file as removed by antivirus. The two NSRL rows share
+    one database: deleting either removes it and both records. A file that is open (an
+    analysis is reading it) stays, with its record, and is reported."""
+    meta_d = _read_meta("downloaded")
+    results, gone = [], set()
+    for sid in ids:
+        s = BY_ID.get(sid)
+        if not s:
+            continue
+        freed, errs = 0, []
+        for p in downloaded_files(s):
+            if p in gone or not p.exists():
+                continue
+            size = _size(p)
+            try:
+                if p.is_dir():
+                    shutil.rmtree(p)
+                else:
+                    p.unlink()
+                freed += size
+                gone.add(p)
+            except OSError as e:
+                errs.append(f"{p.name}: " + ("in use - close the analysis that reads it and try again"
+                                             if isinstance(e, PermissionError) else str(e)))
+        if not errs:
+            for k in (("nsrl_delta", "nsrl_full") if s["fmt"] == "nsrl" else (sid,)):
+                meta_d.pop(k, None)
+        results.append({"id": sid, "name": s["name"], "ok": not errs, "freed": freed, "detail": "; ".join(errs)})
+    _write_meta("downloaded", meta_d)
+    return results
 
 
 def custom_rule_files(extra_dirs: Iterable[str] = ()) -> List[Path]:
@@ -232,6 +337,202 @@ def custom_rule_files(extra_dirs: Iterable[str] = ()) -> List[Path]:
                 seen.add(p.resolve())
                 out.append(p)
     return out
+
+
+# --------------------------------------------------------------------- transfer control (v2.6)
+CHUNK = 256 * 1024      # read size: progress, Pause and Cancel react within one chunk
+NET_TIMEOUT = 60        # seconds without data before a read gives up (Cancel waits at most this)
+NET_RETRIES = 3         # reconnects in a row after a dropped connection (reset when data arrives)
+
+
+class Cancelled(Exception):
+    """The user pressed Cancel (Transfer.cancel())."""
+
+
+class _PartialCancel(Cancelled):
+    """Cancelled part-way through a multi-file database; the files installed so far stay."""
+
+    def __init__(self, entries: int, nbytes: int, parts: int):
+        super().__init__(f"cancelled after {parts} lists")
+        self.entries, self.nbytes, self.parts = entries, nbytes, parts
+
+
+class Transfer:
+    """Live state and Pause / Resume / Cancel of one update run (v2.6).
+
+    Shared by the download thread and the GUI: the worker writes the plain attributes
+    and calls checkpoint() between chunks and database batches; the GUI reads the
+    attributes on a timer and calls pause() / resume() / cancel(). Each field is one
+    int / str / None, so single reads and writes are atomic under the GIL."""
+
+    def __init__(self):
+        self._go = threading.Event()
+        self._go.set()
+        self.cancelled = False
+        self.index = 0            # 1-based position of the current database in this run
+        self.count = 0            # databases in this run
+        self.source = ""          # its name
+        self.phase = ""           # "downloading" | "unpacking" | "building"
+        self.detail = ""          # extra words: "list 12", "1,200,000 hashes"
+        self.done = 0             # bytes of the current file so far
+        self.total = None         # size of the current file when the server sends it
+        self.source_bytes = 0     # bytes downloaded for the current database (all its files)
+        self.received = 0         # bytes downloaded in the whole run (the GUI derives the speed)
+        self.multi = False        # the current database is many files (VirusShare): no single %
+
+    @property
+    def paused(self) -> bool:
+        return not self._go.is_set() and not self.cancelled
+
+    def pause(self) -> None:
+        if not self.cancelled:
+            self._go.clear()
+
+    def resume(self) -> None:
+        self._go.set()
+
+    def cancel(self) -> None:
+        self.cancelled = True
+        self._go.set()            # a paused worker wakes up and stops
+
+    def checkpoint(self) -> None:
+        """Wait while paused; raise Cancelled once cancelled."""
+        self._go.wait()
+        if self.cancelled:
+            raise Cancelled()
+
+    def begin(self, index: int, source: str) -> None:
+        self.index, self.source, self.phase, self.detail = index, source, "downloading", ""
+        self.done, self.total, self.source_bytes, self.multi = 0, None, 0, False
+
+
+def _sqlite_gate(ctl: Transfer):
+    """SQLite progress handler: lets one long statement (NSRL import, index build) pause
+    and stop. Returning 1 makes SQLite abort the statement ('interrupted')."""
+    def gate():
+        ctl._go.wait()
+        return 1 if ctl.cancelled else 0
+    return gate
+
+
+def _gated(con, ctl: Transfer, *statements: str):
+    """Run long SQL statements so that Pause holds them and Cancel stops them (Cancelled)."""
+    import sqlite3
+    con.set_progress_handler(_sqlite_gate(ctl), 200000)
+    try:
+        cur = None
+        for sql in statements:
+            ctl.checkpoint()
+            cur = con.execute(sql)
+        return cur
+    except sqlite3.OperationalError as e:
+        if ctl.cancelled:
+            raise Cancelled() from e
+        raise
+    finally:
+        con.set_progress_handler(None, 0)
+
+
+class _MemSink:
+    def __init__(self):
+        self.buf = bytearray()
+
+    def write(self, b: bytes) -> None:
+        self.buf += b
+
+    def reset(self) -> None:
+        self.buf = bytearray()
+
+
+class _FileSink:
+    def __init__(self, fh):
+        self.fh = fh
+
+    def write(self, b: bytes) -> None:
+        self.fh.write(b)
+
+    def reset(self) -> None:
+        self.fh.seek(0)
+        self.fh.truncate()
+
+
+def _content_total(r, start: int) -> Optional[int]:
+    """Full size of the file from a 206 (Content-Range) or 200 (Content-Length) answer."""
+    m = re.match(r"bytes\s+\d+-\d+/(\d+)", r.headers.get("Content-Range") or "")
+    if m:
+        return int(m.group(1))
+    cl = (r.headers.get("Content-Length") or "").strip()
+    return start + int(cl) if cl.isdigit() else None
+
+
+def _nap(ctl: Transfer, seconds: float) -> None:
+    end = time.monotonic() + seconds
+    while time.monotonic() < end:
+        if ctl.cancelled:
+            raise Cancelled()
+        time.sleep(0.1)
+
+
+def _stream(url: str, sink, ctl: Optional[Transfer] = None, timeout: int = NET_TIMEOUT) -> int:
+    """Download `url` into `sink` in CHUNK pieces, with progress (ctl.done / total /
+    received) and Pause / Cancel (ctl.checkpoint() between pieces).
+
+    A connection that breaks part-way (a server may drop it during a long pause; a flaky
+    line) is reopened with an HTTP Range request for the rest. A server that ignores
+    Range sends the whole file again: the sink is emptied and the file starts over. A
+    failure before the first byte and every HTTP error status are raised at once, as
+    before. Returns the number of bytes in the sink."""
+    ctl = ctl or Transfer()
+    done, total, fails = 0, None, 0
+    ctl.done, ctl.total = 0, None
+    while True:
+        ctl.checkpoint()
+        hdr = {"User-Agent": UA}
+        if done:
+            hdr["Range"] = f"bytes={done}-"
+        try:
+            with urllib.request.urlopen(urllib.request.Request(url, headers=hdr), timeout=timeout) as r:  # nosec - fixed https URLs
+                if done and r.status != 206:          # Range ignored: the whole file comes again
+                    sink.reset()
+                    done = 0
+                total = _content_total(r, done)
+                ctl.done, ctl.total = done, total
+                # read1: whatever has arrived (up to CHUNK) - on a slow line read(CHUNK) would
+                # wait for a full chunk, so progress, Pause and Cancel would lag by seconds
+                read = getattr(r, "read1", r.read)
+                while True:
+                    ctl.checkpoint()
+                    b = read(CHUNK)
+                    if not b:
+                        break
+                    sink.write(b)
+                    n = len(b)
+                    done += n
+                    ctl.done = done
+                    ctl.source_bytes += n
+                    ctl.received += n
+                    fails = 0
+            if total is not None and done < total:
+                raise ConnectionError(f"connection closed after {done:,} of {total:,} bytes")
+            return done
+        except Cancelled:
+            raise
+        except urllib.error.HTTPError as e:
+            if e.code == 416 and done and (total is None or done >= total):
+                return done                            # asked for bytes past the end: all of it is here
+            raise
+        except (OSError, http.client.HTTPException):   # dropped, reset, timed out, incomplete read
+            fails += 1
+            if not done or fails > NET_RETRIES:
+                raise
+            _nap(ctl, min(2.0 * fails, 5.0))
+
+
+def _fetch(url: str, ctl: Optional[Transfer] = None) -> bytes:
+    """A whole download in memory, with progress / Pause / Cancel (small and medium files)."""
+    sink = _MemSink()
+    _stream(url, sink, ctl)
+    return bytes(sink.buf)
 
 
 # --------------------------------------------------------------------- update
@@ -251,21 +552,33 @@ def _github_asset(spec: str) -> str:
 
 
 def update(ids: Iterable[str], keys: Optional[Dict[str, str]] = None,
-           log: Optional[logging.Logger] = None, progress=None) -> List[Dict[str, Any]]:
+           log: Optional[logging.Logger] = None, progress=None,
+           ctl: Optional[Transfer] = None) -> List[Dict[str, Any]]:
     """Download the chosen sources (called ONLY on the user's request). Each file is
     validated (parses, >0 entries) before it replaces the old copy, so a failed or
-    garbage download never destroys a working database."""
+    garbage download never destroys a working database.
+
+    v2.6: `ctl` (a Transfer) carries live progress and Pause / Resume / Cancel. Cancel
+    stops the database being fetched - its previous copy stays - and skips the rest;
+    databases finished earlier in the run keep their new copies. VirusShare keeps the
+    lists installed before the cancel and the next update continues from there."""
     log = log or logging.getLogger("TI")
     keys = keys or {}
+    ctl = ctl or Transfer()
+    ids = [i for i in ids if i in BY_ID]
+    ctl.count = len(ids)
     meta_d = _read_meta("downloaded")
     results = []
-    for sid in ids:
-        s = BY_ID.get(sid)
-        if not s:
+    for n, sid in enumerate(ids, 1):
+        s = BY_ID[sid]
+        res = {"id": sid, "name": s["name"], "ok": False, "detail": ""}
+        if ctl.cancelled:
+            res.update(detail="not started (update cancelled)", cancelled=True)
+            results.append(res)
             continue
+        ctl.begin(n, s["name"])
         if progress:
             progress(s["name"])
-        res = {"id": sid, "name": s["name"], "ok": False, "detail": ""}
         try:
             if s.get("key"):
                 k = (keys.get(s["key"]) or "").strip()
@@ -281,7 +594,7 @@ def update(ids: Iterable[str], keys: Optional[Dict[str, str]] = None,
             log.info("TI update: downloading %s", s["name"])
             if s["fmt"] == "bazaar_full":
                 dest = db_root() / "downloaded" / s["file"]
-                entries, nbytes = _install_hash_db(url, dest, log)
+                entries, nbytes = _install_hash_db(url, dest, log, ctl)
                 meta_d[sid] = {"fetched_epoch": time.time(), "entries": entries, "bytes": nbytes,
                                "url": url.replace(keys.get(s.get("key") or "", "") or "\0", "<key>")}
                 _write_meta("downloaded", meta_d)
@@ -291,8 +604,19 @@ def update(ids: Iterable[str], keys: Optional[Dict[str, str]] = None,
             if s["fmt"] == "virusshare":
                 dest = db_root() / "downloaded" / s["file"]
                 prev = meta_d.get(sid) or {}
-                entries, nbytes, parts = _install_virusshare(s["url"], dest, log,
-                                                             int(prev.get("parts") or 0) if dest.exists() else 0)
+                try:
+                    entries, nbytes, parts = _install_virusshare(s["url"], dest, log,
+                                                                 int(prev.get("parts") or 0) if dest.exists() else 0,
+                                                                 ctl)
+                except _PartialCancel as pc:            # keep the lists already installed
+                    meta_d[sid] = {"fetched_epoch": prev.get("fetched_epoch") or time.time(), "entries": pc.entries,
+                                   "parts": pc.parts, "bytes": pc.nbytes, "url": s["url"], "partial": True}
+                    _write_meta("downloaded", meta_d)
+                    res.update(cancelled=True, detail=f"cancelled after {pc.parts:,} lists - the {pc.entries:,} "
+                                                      "hashes installed so far are kept; the next update continues")
+                    log.info("TI update %s cancelled by the user after %d lists", sid, pc.parts)
+                    results.append(res)
+                    continue
                 meta_d[sid] = {"fetched_epoch": time.time(), "entries": entries, "parts": parts,
                                "bytes": nbytes, "url": s["url"]}
                 _write_meta("downloaded", meta_d)
@@ -301,7 +625,7 @@ def update(ids: Iterable[str], keys: Optional[Dict[str, str]] = None,
                 continue
             if s["fmt"] == "nsrl":
                 dest = db_root() / "downloaded" / s["file"]
-                entries, nbytes, ver = _install_nsrl(s["url"].split(":", 1)[1], dest, log)
+                entries, nbytes, ver = _install_nsrl(s["url"].split(":", 1)[1], dest, log, ctl)
                 for other in ("nsrl_delta", "nsrl_full"):       # one shared database
                     if other == sid or other in meta_d:
                         meta_d[other] = dict(meta_d.get(other) or {}, entries=entries)
@@ -311,18 +635,19 @@ def update(ids: Iterable[str], keys: Optional[Dict[str, str]] = None,
                 res.update(ok=True, detail=f"{entries:,} entries (RDS {ver})")
                 results.append(res)
                 continue
-            data = _get(url)
+            data = _fetch(url, ctl)
+            ctl.checkpoint()                             # Cancel right after the download: keep the old copy
+            ctl.phase = "building"
             if s["fmt"] == "yara":
                 dest = rules_root() / "yara-forge" / "_downloaded" / s["file"]
                 with zipfile.ZipFile(io.BytesIO(data)) as z:
-                    names = [n for n in z.namelist() if n.endswith(".yar")]
+                    names = [x for x in z.namelist() if x.endswith(".yar")]
                     if not names:
                         raise RuntimeError("no .yar in the release zip")
                     body = z.read(names[0])
-                import yara
-                yara.compile(source=body.decode("utf-8", "replace"), externals=YARA_EXTERNALS)
+                ctl.detail = "checking the rules"
+                _install_yara(body, dest, ctl)
                 entries = body.count(b"\nrule ") + body.count(b"\nprivate rule ")
-                _atomic_write(dest, body)
             elif s["fmt"] == "trails":
                 dest = db_root() / "downloaded" / s["file"]
                 entries = _install_trails(data, dest)
@@ -341,6 +666,9 @@ def update(ids: Iterable[str], keys: Optional[Dict[str, str]] = None,
                            "entries": entries, "bytes": len(data)}
             _write_meta("downloaded", meta_d)
             res.update(ok=True, detail=f"{entries:,} entries")
+        except Cancelled:
+            res.update(cancelled=True, detail="cancelled - the previous copy is kept")
+            log.info("TI update %s cancelled by the user", sid)
         except Exception as e:                     # network, HTTP 4xx/5xx, parse
             res["detail"] = f"{type(e).__name__}: {str(e)[:200]}"
             log.warning("TI update %s failed: %s", sid, res["detail"])
@@ -348,28 +676,25 @@ def update(ids: Iterable[str], keys: Optional[Dict[str, str]] = None,
     return results
 
 
-def _install_hash_db(url: str, dest: Path, log: logging.Logger) -> Tuple[int, int]:
+def _install_hash_db(url: str, dest: Path, log: logging.Logger,
+                     ctl: Optional[Transfer] = None) -> Tuple[int, int]:
     """Download MalwareBazaar's full CSV export (zip) to disk and turn it into a local
     SQLite hash database: h(sha256, md5, sha1, sig, ftype, first). The download and the
     CSV are streamed (the CSV is ~1 GB unpacked), and the finished database only replaces
-    the old one when it holds a plausible number of rows. Returns (rows, download bytes)."""
+    the old one when it holds a plausible number of rows. Returns (rows, download bytes).
+    v2.6: progress, Pause and Cancel via `ctl`; a cancel leaves the old database as it was."""
     import sqlite3
+    ctl = ctl or Transfer()
     dest.parent.mkdir(parents=True, exist_ok=True)
     zpath = dest.with_name(dest.name + ".zip.part")
     tmp = dest.with_name(dest.name + ".part")
     for f in (zpath, tmp):
         if f.exists():
             f.unlink()
-    nbytes = 0
     try:
-        req = urllib.request.Request(url, headers={"User-Agent": UA})
-        with urllib.request.urlopen(req, timeout=300) as r, open(zpath, "wb") as out:   # nosec - fixed https URL
-            while True:
-                b = r.read(4 * 1024 * 1024)
-                if not b:
-                    break
-                out.write(b)
-                nbytes += len(b)
+        with open(zpath, "wb") as out:
+            nbytes = _stream(url, _FileSink(out), ctl)
+        ctl.phase, ctl.detail = "building", ""
         con = sqlite3.connect(str(tmp))
         try:
             con.execute("PRAGMA journal_mode=OFF")
@@ -400,16 +725,19 @@ def _install_hash_db(url: str, dest: Path, log: logging.Logger) -> Tuple[int, in
                             con.executemany("INSERT OR IGNORE INTO h VALUES (?,?,?,?,?,?)", batch)
                             n += len(batch)
                             batch = []
+                            ctl.detail = f"{n:,} hashes"
+                            ctl.checkpoint()
                     if batch:
                         con.executemany("INSERT OR IGNORE INTO h VALUES (?,?,?,?,?,?)", batch)
                         n += len(batch)
             if n < 100000:
                 raise RuntimeError(f"full export has only {n:,} usable rows - not installed")
-            con.execute("CREATE INDEX h_md5 ON h(md5)")
-            con.execute("CREATE INDEX h_sha1 ON h(sha1)")
+            ctl.detail = f"{n:,} hashes, indexing"
+            _gated(con, ctl, "CREATE INDEX h_md5 ON h(md5)", "CREATE INDEX h_sha1 ON h(sha1)")
             con.commit()
         finally:
             con.close()
+        ctl.checkpoint()                                 # last chance to keep the old database
         os.replace(tmp, dest)
         log.info("TI update: local hash database built - %s hashes", f"{n:,}")
         return n, nbytes
@@ -422,18 +750,11 @@ def _install_hash_db(url: str, dest: Path, log: logging.Logger) -> Tuple[int, in
                 pass
 
 
-def _download_to(url: str, path: Path, timeout: int = 300) -> int:
-    """Stream a download to disk (no size limit in RAM). Returns the byte count."""
-    n = 0
-    req = urllib.request.Request(url, headers={"User-Agent": UA})
-    with urllib.request.urlopen(req, timeout=timeout) as r, open(path, "wb") as out:    # nosec - fixed https URLs
-        while True:
-            b = r.read(4 * 1024 * 1024)
-            if not b:
-                break
-            out.write(b)
-            n += len(b)
-    return n
+def _download_to(url: str, path: Path, ctl: Optional[Transfer] = None) -> int:
+    """Stream a download to disk (no size limit in RAM), with progress, Pause, Cancel and
+    resume after a dropped connection (v2.6). Returns the byte count."""
+    with open(path, "wb") as out:
+        return _stream(url, _FileSink(out), ctl)
 
 
 def _max_parts() -> int:
@@ -443,14 +764,20 @@ def _max_parts() -> int:
     return int(v) if v.isdigit() else 0
 
 
-def _install_virusshare(url_tpl: str, dest: Path, log: logging.Logger, have_parts: int) -> Tuple[int, int, int]:
+def _install_virusshare(url_tpl: str, dest: Path, log: logging.Logger, have_parts: int,
+                        ctl: Optional[Transfer] = None) -> Tuple[int, int, int]:
     """VirusShare publishes numbered MD5 lists (VirusShare_00000.md5 ...). Fetch every list
     from `have_parts` on until the first one that does not exist and add the hashes to a
     local SQLite table v(md5). Lists already installed are not downloaded again, so an
-    update is cheap. Returns (total hashes, bytes downloaded, lists installed)."""
+    update is cheap. Returns (total hashes, bytes downloaded, lists installed).
+    v2.6: Pause / Cancel via `ctl`. Every list is committed on its own, so a cancel keeps
+    the lists installed so far (_PartialCancel says how many); a first install cancelled
+    before any list was added leaves no file behind."""
     import sqlite3
-    import urllib.error
+    ctl = ctl or Transfer()
+    ctl.multi = True
     dest.parent.mkdir(parents=True, exist_ok=True)
+    existed = dest.exists()
     con = sqlite3.connect(str(dest))
     nbytes, part, new = 0, have_parts, 0
     limit = _max_parts()
@@ -458,11 +785,21 @@ def _install_virusshare(url_tpl: str, dest: Path, log: logging.Logger, have_part
         con.execute("PRAGMA synchronous=OFF")
         con.execute("CREATE TABLE IF NOT EXISTS v(md5 BLOB PRIMARY KEY) WITHOUT ROWID")
         while not limit or new < limit:
+            ctl.detail = f"list {part + 1:,}"
             try:
-                data = _get(url_tpl.format(part=part), 300)
+                data = _fetch(url_tpl.format(part=part), ctl)
             except urllib.error.HTTPError as e:
                 if e.code == 404:
                     break                              # past the newest list
+                raise
+            except Cancelled:
+                total = con.execute("SELECT COUNT(*) FROM v").fetchone()[0]
+                con.close()
+                con = None
+                if new and total:
+                    raise _PartialCancel(total, nbytes, part)
+                if not existed:
+                    dest.unlink(missing_ok=True)
                 raise
             nbytes += len(data)
             rows = []
@@ -483,7 +820,8 @@ def _install_virusshare(url_tpl: str, dest: Path, log: logging.Logger, have_part
                 log.info("TI update: VirusShare list %d installed", part)
         total = con.execute("SELECT COUNT(*) FROM v").fetchone()[0]
     finally:
-        con.close()
+        if con is not None:
+            con.close()
     if not total:
         raise RuntimeError("no VirusShare hashes were installed")
     return total, nbytes, part
@@ -515,8 +853,9 @@ def _nsrl_open(dest: Path):
     return con
 
 
-def nsrl_import_sql(sql_lines: Iterable[str], con) -> int:
-    """Add the FILE rows of an NSRL delta (.sql text with INSERT statements) to g()."""
+def nsrl_import_sql(sql_lines: Iterable[str], con, ctl: Optional[Transfer] = None) -> int:
+    """Add the FILE rows of an NSRL delta (.sql text with INSERT statements) to g().
+    v2.6: Pause / Cancel between batches (the caller rolls a cancelled import back)."""
     n, batch = 0, []
     for ln in sql_lines:
         if not ln.startswith("INSERT INTO FILE"):
@@ -529,6 +868,9 @@ def nsrl_import_sql(sql_lines: Iterable[str], con) -> int:
             con.executemany("INSERT OR IGNORE INTO g VALUES (?,?,?)", batch)
             n += len(batch)
             batch = []
+            if ctl is not None:
+                ctl.detail = f"{n:,} known files"
+                ctl.checkpoint()
     if batch:
         con.executemany("INSERT OR IGNORE INTO g VALUES (?,?,?)", batch)
         n += len(batch)
@@ -536,32 +878,43 @@ def nsrl_import_sql(sql_lines: Iterable[str], con) -> int:
     return n
 
 
-def nsrl_import_db(rds_db: Path, con) -> int:
-    """Add the distinct file hashes of a full NSRL RDSv3 SQLite database (table FILE) to g()."""
+def nsrl_import_db(rds_db: Path, con, ctl: Optional[Transfer] = None) -> int:
+    """Add the distinct file hashes of a full NSRL RDSv3 SQLite database (table FILE) to g().
+    v2.6: the one long statement honours Pause / Cancel (aborted and rolled back)."""
+    sql = ("INSERT OR IGNORE INTO g SELECT unhex(sha256), unhex(sha1), unhex(md5) FROM "
+           "(SELECT DISTINCT sha256, sha1, md5 FROM rds.FILE "
+           " WHERE length(sha256) = 64 AND length(sha1) = 40 AND length(md5) = 32)")
     con.execute("ATTACH DATABASE ? AS rds", (str(rds_db),))
     try:
-        cur = con.execute("INSERT OR IGNORE INTO g SELECT unhex(sha256), unhex(sha1), unhex(md5) FROM "
-                          "(SELECT DISTINCT sha256, sha1, md5 FROM rds.FILE "
-                          " WHERE length(sha256) = 64 AND length(sha1) = 40 AND length(md5) = 32)")
+        cur = _gated(con, ctl, sql) if ctl is not None else con.execute(sql)
         n = cur.rowcount
         con.commit()
+    except BaseException:
+        con.rollback()                          # DETACH is refused inside an open transaction
+        raise
     finally:
         con.execute("DETACH DATABASE rds")
     return max(n, 0)
 
 
-def _install_nsrl(kind: str, dest: Path, log: logging.Logger) -> Tuple[int, int, str]:
+def _install_nsrl(kind: str, dest: Path, log: logging.Logger,
+                  ctl: Optional[Transfer] = None) -> Tuple[int, int, str]:
     """Download the newest NSRL zip of `kind` and merge its file hashes into the local
     known-file database g(sha256, sha1, md5). A delta zip holds a .sql text file, the full
     set a ready SQLite .db; both end up in the same compact table. Returns (rows in the
-    database, bytes downloaded, RDS version)."""
+    database, bytes downloaded, RDS version).
+    v2.6: progress, Pause and Cancel via `ctl`. A cancelled import is rolled back; a first
+    install cancelled part-way leaves no database file behind."""
+    ctl = ctl or Transfer()
     url, ver = nsrl_latest(kind)
     dest.parent.mkdir(parents=True, exist_ok=True)
+    existed = dest.exists()
     zpath = dest.with_name(f"nsrl_{kind}.zip.part")
     work = dest.with_name(f"nsrl_{kind}.unpack")
     try:
         log.info("TI update: NSRL %s %s - downloading %s", kind, ver, url.rsplit("/", 1)[-1])
-        nbytes = _download_to(url, zpath, 600)
+        nbytes = _download_to(url, zpath, ctl)
+        ctl.checkpoint()
         con = _nsrl_open(dest)
         try:
             with zipfile.ZipFile(zpath) as z:
@@ -569,26 +922,44 @@ def _install_nsrl(kind: str, dest: Path, log: logging.Logger) -> Tuple[int, int,
                 dbs = [x for x in names if x.lower().endswith(".db")]
                 sqls = [x for x in names if x.lower().endswith(".sql") and "schema" not in x.lower()]
                 if dbs:
+                    ctl.phase, ctl.detail = "unpacking", ""
                     work.mkdir(parents=True, exist_ok=True)
                     out = work / "rds.db"
                     with z.open(dbs[0]) as fi, open(out, "wb") as fo:
-                        shutil.copyfileobj(fi, fo, 16 * 1024 * 1024)
-                    added = nsrl_import_db(out, con)
+                        while True:
+                            ctl.checkpoint()
+                            b = fi.read(16 * 1024 * 1024)
+                            if not b:
+                                break
+                            fo.write(b)
+                    ctl.phase, ctl.detail = "building", "importing the known files"
+                    added = nsrl_import_db(out, con, ctl)
                 elif sqls:
+                    ctl.phase = "building"
                     added = 0
                     for name in sqls:
                         with z.open(name) as fh:
-                            added += nsrl_import_sql(io.TextIOWrapper(fh, encoding="utf-8", errors="replace"), con)
+                            added += nsrl_import_sql(io.TextIOWrapper(fh, encoding="utf-8", errors="replace"),
+                                                     con, ctl)
                 else:
                     raise RuntimeError("the NSRL zip holds neither a .db nor a .sql file")
             if not added:
                 raise RuntimeError("the NSRL download had no usable file rows")
-            con.execute("CREATE INDEX IF NOT EXISTS g_sha1 ON g(sha1)")
-            con.execute("CREATE INDEX IF NOT EXISTS g_md5 ON g(md5)")
+            ctl.detail = "indexing"
+            _gated(con, ctl, "CREATE INDEX IF NOT EXISTS g_sha1 ON g(sha1)",
+                   "CREATE INDEX IF NOT EXISTS g_md5 ON g(md5)")
             con.commit()
             total = con.execute("SELECT COUNT(*) FROM g").fetchone()[0]
-        finally:
+        except Cancelled:
+            con.rollback()
             con.close()
+            con = None
+            if not existed:
+                dest.unlink(missing_ok=True)          # a cancelled first install leaves nothing
+            raise
+        finally:
+            if con is not None:
+                con.close()
         return total, nbytes, ver
     finally:
         shutil.rmtree(work, ignore_errors=True)
@@ -687,6 +1058,50 @@ def hash_db_lookup(path: Path, kind: str, values: Iterable[str]) -> Dict[str, st
     finally:
         con.close()
     return out
+
+
+_YARA_CHECK = ("import sys, yara\n"
+               "src = open(sys.argv[1], encoding='utf-8', errors='replace').read()\n"
+               "yara.compile(source=src, externals=%r)\n")
+
+
+def _install_yara(body: bytes, dest: Path, ctl: Optional[Transfer] = None) -> None:
+    """Compile a downloaded YARA rule set and only then let it replace the old one.
+
+    v2.6: the compile runs in the bundled Python 3 (runtime\\py3), not in this process.
+    The GUI exe does not contain yara-python, so every YARA Forge update started from
+    the GUI failed with "No module named 'yara'"; a compile of ~11,000 rules would also
+    hold the Python lock for seconds and stall the window; and a child process can be
+    stopped by Cancel."""
+    import subprocess
+    ctl = ctl or Transfer()
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    tmp = dest.with_name(dest.name + ".part")
+    tmp.write_bytes(body)
+    try:
+        p = subprocess.Popen([platform_compat.python3_exe(), "-I", "-c", _YARA_CHECK % (YARA_EXTERNALS,), str(tmp)],
+                             stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                             creationflags=platform_compat.no_window_flags())
+        while True:
+            try:
+                _, err = p.communicate(timeout=0.25)
+                break
+            except subprocess.TimeoutExpired:
+                if ctl.cancelled:
+                    p.kill()
+                    p.communicate()
+                    raise Cancelled()
+        if p.returncode != 0:
+            last = [ln for ln in err.decode("utf-8", "replace").splitlines() if ln.strip()][-1:] or ["no output"]
+            raise RuntimeError(f"the downloaded YARA rules do not compile: {last[0][:200]}")
+        ctl.checkpoint()                                 # Cancel during the check: keep the old rules
+        os.replace(tmp, dest)
+    finally:
+        try:
+            if tmp.exists():
+                tmp.unlink()
+        except OSError:
+            pass
 
 
 def _atomic_write(dest: Path, data: bytes) -> None:

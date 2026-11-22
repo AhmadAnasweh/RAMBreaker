@@ -127,11 +127,13 @@ reconstruction, and Volatility 2 profiles still work.
 
    **The databases go out of date.** New malware and attacker servers appear every day.
    The options window and **Settings > Threat-intel databases** show the age of each
-   source and offer an **Update**. Updating is never automatic, and offline the
-   bundled copies are used. Only freely redistributable sources are bundled: YARA
-   Forge, IPsum and Feodo. Maltrail, Spamhaus, ET, CINS, OpenPhish and abuse.ch are
+   source and its size on disk, and offer an **Update**. Updating is never automatic, and
+   offline the bundled copies are used. Only freely redistributable sources are bundled:
+   YARA Forge, IPsum and Feodo. Maltrail, Spamhaus, ET, CINS, OpenPhish and abuse.ch are
    downloaded to your PC when you choose Update, because their terms do not allow
-   redistribution.
+   redistribution. An update shows its progress, speed and time left and can be paused,
+   resumed or cancelled; **Delete ticked downloads** frees the space of downloaded copies,
+   and the window shows the free disk space.
 
    The VirusTotal key is passed to the analysis process privately, never on the command
    line or in a log. It is stored, DPAPI-encrypted for your Windows user, only if you
@@ -281,6 +283,23 @@ value while you were only trying to scroll the panel. Now the wheel always
 scrolls the panel and never changes a value. Change a value by clicking it,
 typing, the arrow buttons or the keyboard; an open drop-down list still scrolls
 with the wheel.
+
+**v2.6.0 (2026-11-22): threat-intel database downloads you can follow and
+control.** In Settings > Threat-intel databases (and the DFIR + Threat Intel
+dialog) an update now shows which database is being fetched, a progress bar,
+how much is downloaded and how much is left, the download speed and the time
+left, with **Pause / Resume** and **Cancel**. Cancel keeps the previous copy of
+the database being fetched; databases finished earlier in the same update stay
+updated, and VirusShare continues from the last list it installed. A connection
+that drops during a long pause continues where it stopped. **Delete ticked
+downloads** removes downloaded copies to free disk space (copies that ship with
+RAMBreaker are never deleted and are used again). The table has a **Size**
+column, and the window shows the free disk space and how much space all
+databases use; an update that needs more free space than the drive has asks
+first. Two fixes: v2.5.1's mouse-wheel protection could freeze the window
+("not responding") during a large update - each drop-down and number box now
+ignores the wheel itself - and updating YARA Forge from the GUI works again (it
+failed with "No module named 'yara'").
 
 Tuning switches (environment variables, normally not needed):
 `RAMBREAKER_VOL2_LANES`, `RAMBREAKER_TI_LANES` (number of parallel Volatility

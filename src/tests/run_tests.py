@@ -1624,10 +1624,24 @@ def test_gui_wheel_guard():
     print("[gui wheel guard]")
     app = QApplication.instance() or QApplication([])
     from gui import main_window as mw, theme, widgets
+    from PySide6.QtWidgets import QAbstractSpinBox, QComboBox
     widgets.set_theme(theme.palette("dark"))
-    widgets.install_wheel_guard()
-    widgets.install_wheel_guard()                        # idempotent
     sp = mw.SetupPanel(dict(mw.DEFAULT_SETTINGS))
+    safe = (widgets.ComboBox, widgets.SpinBox, widgets.DoubleSpinBox)
+    boxes = sp.findChildren(QComboBox) + sp.findChildren(QAbstractSpinBox)
+    check("setup panel: every drop-down / number box is a wheel-safe class",
+          len(boxes) >= 7 and all(isinstance(b, safe) for b in boxes),
+          [type(b).__name__ for b in boxes])
+    import re as _re
+    plain = []
+    for f in sorted((ROOT / "gui").glob("*.py")):
+        if f.name == "widgets.py":
+            continue
+        for n, line in enumerate(f.read_text(encoding="utf-8").splitlines(), 1):
+            if _re.search(r"\bQ(ComboBox|SpinBox|DoubleSpinBox|Slider)\(", line):
+                plain.append(f"{f.name}:{n}")
+    check("gui source: no plain QComboBox / QSpinBox / QDoubleSpinBox / QSlider (use the wheel-safe ones)",
+          not plain, plain)
     sc = QScrollArea()
     sc.setWidget(sp)
     sc.setWidgetResizable(True)
@@ -1693,6 +1707,44 @@ def test_gui_wheel_guard():
     check("Settings dialog: wheel keeps the timeout box", d.tmo.value() == t0 and not d.tmo.hasFocus())
     d.close()
     sc.close()
+    # v2.6.0 regression guard: the GUI must stay responsive while a background thread
+    # works in Python. v2.5.1's application-wide Python event filter made every GUI
+    # event wait for the Python lock (23 instead of ~260 timer ticks in 6 s) and froze
+    # a VirusShare update ("not responding").
+    import threading
+    import time as _t
+    from PySide6.QtCore import QTimer
+    d = mw.SettingsDialog(dict(mw.DEFAULT_SETTINGS))
+    d.show()
+    stop, ticks = threading.Event(), [0]
+
+    def busy_python():                                   # VirusShare-style parsing
+        lines = [f"{i:032x}".encode() for i in range(131072)]
+        while not stop.is_set():
+            [bytes.fromhex(ln.decode("ascii")) for ln in lines]
+
+    def tick():
+        ticks[0] += 1
+        d.update()
+        for c in d.findChildren(QAbstractSpinBox) + d.findChildren(QComboBox):
+            c.update()
+    tm = QTimer()
+    tm.setInterval(20)
+    tm.timeout.connect(tick)
+    tm.start()
+    worker = threading.Thread(target=busy_python, daemon=True)
+    worker.start()
+    QTimer.singleShot(3000, app.quit)
+    t0 = _t.perf_counter()
+    app.exec()
+    span = _t.perf_counter() - t0
+    stop.set()
+    tm.stop()
+    worker.join(5)
+    d.close()
+    ideal = span / 0.020
+    check("GUI stays responsive while a background thread works in Python (>= 50% of timer ticks)",
+          ticks[0] >= 0.5 * ideal, f"{ticks[0]} of ~{ideal:.0f} ticks")
 
 
 def test_threat_intel():
@@ -2019,6 +2071,354 @@ def test_gui_threat_intel():
           any(c == "dfir-ti" for _, c, _ in mw.PRESETS), names)
     d.close()
     db.close()
+
+
+def test_ti_download_controls():
+    """v2.6 threat-intel database updates: progress, Pause / Resume, Cancel, resume of a
+    dropped connection (HTTP Range), Delete of downloaded copies, disk space - engine and GUI."""
+    import shutil
+    import sqlite3
+    import tempfile
+    import threading
+    import time
+    from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+    print("[threat intel download controls]")
+    tmp = Path(tempfile.mkdtemp())
+    old_home = os.environ.get("RAMBREAKER_HOME")
+    os.environ["RAMBREAKER_HOME"] = str(tmp)
+    blob = bytes(range(256)) * 12289                                   # ~3 MB, deterministic
+    feed = ("\n".join(f"10.{i >> 16 & 255}.{i >> 8 & 255}.{i & 255}" for i in range(160000)) + "\n").encode()
+    hits = []
+
+    class H(BaseHTTPRequestHandler):
+        def log_message(self, *a):
+            pass
+
+        def do_GET(self):
+            p, rng = self.path, self.headers.get("Range")
+            hits.append((p, rng))
+            if p.startswith("/vs_"):                                     # VirusShare-style numbered lists
+                n = int(p[4:9])
+                if n >= 3:
+                    self.send_error(404)
+                    return
+                body = ("\n".join(f"{n:02x}{i:030x}" for i in range(200)) + "\n").encode()
+            elif p.startswith("/small"):
+                body = b"1.2.3.4\n5.6.7.8\n"
+            else:
+                body = feed if "feed" in p else blob
+            start = int(rng.split("=")[1].split("-")[0]) if rng and "norange" not in p else 0
+            part = body[start:]
+            self.send_response(206 if start else 200)
+            if start:
+                self.send_header("Content-Range", f"bytes {start}-{len(body) - 1}/{len(body)}")
+            self.send_header("Content-Length", str(len(part)))
+            self.end_headers()
+            drop = "drop" in p and sum(1 for q, _ in hits if q == p) == 1
+            pause = 0.07 if "veryslow" in p else 0.01 if "slow" in p else 0
+            for i in range(0, len(part), 65536):
+                if drop and i >= 1024 * 1024:
+                    return                                               # cut the line after 1 MB, first time only
+                try:
+                    self.wfile.write(part[i:i + 65536])
+                except OSError:
+                    return
+                if pause:
+                    time.sleep(pause)
+
+    srv = ThreadingHTTPServer(("127.0.0.1", 0), H)
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    base = f"http://127.0.0.1:{srv.server_address[1]}"
+    from modules import ti_sources as ts
+    saved_by_id, saved_sources = dict(ts.BY_ID), list(ts.SOURCES)
+    try:
+        # ---- engine: progress, Range resume, restart without Range, pause, cancel
+        c = ts.Transfer()
+        d = ts._fetch(base + "/a", c)
+        check("stream: download intact, progress = size, bytes counted for the speed",
+              d == blob and c.done == c.total == len(blob) and c.received == len(blob), (c.done, c.total))
+        d = ts._fetch(base + "/drop", ts.Transfer())
+        r = [h for h in hits if h[0] == "/drop"]
+        check("stream: a dropped connection resumes with an HTTP Range request, file intact",
+              d == blob and len(r) == 2 and (r[1][1] or "").startswith("bytes=1"), r)
+        check("stream: server without Range support -> that file restarts cleanly",
+              ts._fetch(base + "/drop-norange", ts.Transfer()) == blob)
+        c, out = ts.Transfer(), {}
+        t = threading.Thread(target=lambda: out.setdefault("d", ts._fetch(base + "/slow", c)))
+        t.start()
+        end = time.time() + 10
+        while c.done < 512 * 1024 and time.time() < end:
+            time.sleep(0.005)
+        c.pause()
+        time.sleep(0.2)
+        a = c.done
+        time.sleep(0.4)
+        check("stream: Pause holds the download", a == c.done and c.paused, (a, c.done))
+        c.resume()
+        t.join(15)
+        check("stream: Resume finishes it intact", out.get("d") == blob)
+        c, err = ts.Transfer(), {}
+
+        def run_cancel():
+            try:
+                ts._fetch(base + "/slow", c)
+            except ts.Cancelled:
+                err["c"] = True
+        t = threading.Thread(target=run_cancel)
+        t.start()
+        end = time.time() + 10
+        while c.done < 512 * 1024 and time.time() < end:
+            time.sleep(0.005)
+        c.pause()
+        time.sleep(0.1)
+        t0 = time.time()
+        c.cancel()
+        t.join(5)
+        check("stream: Cancel (even while paused) stops at once with Cancelled",
+              err.get("c") and not t.is_alive() and time.time() - t0 < 2)
+
+        # ---- YARA rules are checked in the bundled Python (the GUI exe has no yara module)
+        ydest = tmp / "yara_rules" / "yara-forge" / "_downloaded" / "core.yar"
+        ts._install_yara(b'rule ok_rule { strings: $a = "abc" condition: $a }\n', ydest, ts.Transfer())
+        check("yara: a rule set that compiles replaces the old one (checked in a separate Python)",
+              ydest.read_bytes().startswith(b"rule ok_rule"))
+        try:
+            ts._install_yara(b"rule broken { condition: nope }\n", ydest, ts.Transfer())
+            bad = None
+        except RuntimeError as e:
+            bad = str(e)
+        check("yara: rules that do not compile are refused, the old rules stay, no temp file",
+              bool(bad) and "do not compile" in bad and ydest.read_bytes().startswith(b"rule ok_rule")
+              and not ydest.with_name("core.yar.part").exists(), bad)
+        big = "".join(f"rule r{i} {{ strings: $a = /a{i}[0-9a-f]{{4,40}}b/ condition: $a }}\n"
+                      for i in range(20000)).encode()
+        c = ts.Transfer()
+        c.cancel()
+        t0 = time.time()
+        try:
+            ts._install_yara(big, ydest, c)
+            got = "not cancelled"
+        except ts.Cancelled:
+            got = "cancelled"
+        check("yara: Cancel stops the rule check at once, the old rules stay",
+              got == "cancelled" and time.time() - t0 < 3 and ydest.read_bytes().startswith(b"rule ok_rule")
+              and not ydest.with_name("core.yar.part").exists(), (got, round(time.time() - t0, 2)))
+
+        # ---- update(): cancel keeps the old copy, earlier databases stay updated, rest not started
+        def src(sid, path, fmt="iplist"):
+            return {"id": sid, "name": f"Test {sid}", "what": "IP addresses", "url": base + path,
+                    "file": f"{sid}.txt", "licence": "-", "bundled": False, "fmt": fmt, "homepage": "-", "why": "-"}
+        for s in (src("t_one", "/small"), src("t_big", "/feed-slow"), src("t_three", "/small")):
+            ts.BY_ID[s["id"]] = s
+        dl = tmp / "threat_intel_db" / "downloaded"
+        dl.mkdir(parents=True, exist_ok=True)
+        (dl / "t_big.txt").write_text("9.9.9.9\n", encoding="utf-8")
+
+        class CancelAt(ts.Transfer):
+            def __init__(self, when):
+                super().__init__()
+                self.when = when
+
+            def checkpoint(self):
+                if self.when(self):
+                    self.cancel()
+                super().checkpoint()
+        res = ts.update(["t_one", "t_big", "t_three"], ctl=CancelAt(lambda c: c.index == 2 and c.done >= 256 * 1024))
+        got = [(r["id"], r["ok"], bool(r.get("cancelled"))) for r in res]
+        check("update: cancel in database 2 of 3 -> 1 updated, 2 cancelled, 3 not started",
+              got == [("t_one", True, False), ("t_big", False, True), ("t_three", False, True)]
+              and "previous copy is kept" in res[1]["detail"] and "not started" in res[2]["detail"], res)
+        check("update: the cancelled database keeps its old copy, no temporary files left",
+              (dl / "t_big.txt").read_text(encoding="utf-8") == "9.9.9.9\n"
+              and not [p.name for p in dl.iterdir() if p.name.endswith((".part", ".old"))],
+              sorted(p.name for p in dl.iterdir()))
+        res = ts.update(["t_big"], ctl=ts.Transfer())
+        check("update: the same database updates fine afterwards (160,000 entries)",
+              res[0]["ok"] and "160,000" in res[0]["detail"], res)
+
+        # ---- VirusShare: a cancel keeps the lists installed so far, the next update continues
+        ts.BY_ID["virusshare"] = dict(saved_by_id["virusshare"], url=base + "/vs_{part:05d}.md5")
+        res = ts.update(["virusshare"], ctl=CancelAt(lambda c: c.detail == "list 1"))
+        check("virusshare: cancelled before the first list -> nothing left on disk",
+              res[0].get("cancelled") and not (dl / "virusshare_md5.sqlite").exists(), res)
+        res = ts.update(["virusshare"], ctl=CancelAt(lambda c: c.detail == "list 2"))
+        st = {r["id"]: r for r in ts.status()}["virusshare"]
+        check("virusshare: cancelled in list 2 -> list 1 kept (200 hashes), marked incomplete",
+              res[0].get("cancelled") and "next update continues" in res[0]["detail"]
+              and st["present"] and st["entries"] == 200 and st["partial"], (res, st["entries"], st["partial"]))
+        n0 = len(hits)
+        res = ts.update(["virusshare"], ctl=ts.Transfer())
+        st = {r["id"]: r for r in ts.status()}["virusshare"]
+        asked = [h[0] for h in hits[n0:]]
+        check("virusshare: the next update continues at list 2, completes (3 lists, 600 hashes)",
+              res[0]["ok"] and "/vs_00000.md5" not in asked and asked[0] == "/vs_00001.md5"
+              and st["entries"] == 600 and not st["partial"], (res, asked, st["entries"]))
+
+        # ---- delete(): downloaded copies only; bundled copy comes back; shared NSRL file; file in use
+        (tmp / "threat_intel_db" / "bundled").mkdir(parents=True, exist_ok=True)
+        (tmp / "threat_intel_db" / "bundled" / "ipsum.txt").write_text("8.8.4.4\t2\n", encoding="utf-8")
+        (dl / "ipsum.txt").write_text("8.8.4.4\t2\n1.1.1.1\t3\n", encoding="utf-8")
+        (dl / "trails" / "malware").mkdir(parents=True, exist_ok=True)
+        (dl / "trails" / "malware" / "x.txt").write_bytes(b"evil.example.com\n" * 100)   # exact size: no CRLF
+        (dl / "cins.txt").write_text("7.7.7.7\n", encoding="utf-8")
+        con = sqlite3.connect(str(dl / "nsrl_known.sqlite"))
+        con.execute("CREATE TABLE g(sha256 BLOB PRIMARY KEY, sha1 BLOB, md5 BLOB) WITHOUT ROWID")
+        con.commit()
+        con.close()
+        meta = json.loads((dl / "_meta.json").read_text(encoding="utf-8"))
+        meta.update({"ipsum": {"fetched_epoch": time.time(), "entries": 2},
+                     "maltrail": {"fetched_epoch": time.time(), "entries": 100},
+                     "cins": {"fetched_epoch": time.time(), "entries": 1},
+                     "nsrl_delta": {"fetched_epoch": time.time(), "entries": 0}})
+        (dl / "_meta.json").write_text(json.dumps(meta), encoding="utf-8")
+        st = {r["id"]: r for r in ts.status()}
+        check("status: size on disk and 'can be deleted' per database",
+              st["maltrail"]["downloaded"] and st["maltrail"]["disk_bytes"] == 1700
+              and st["ipsum"]["downloaded"] and st["ipsum"]["where"] == "downloaded"
+              and st["nsrl_delta"]["downloaded"] and not st["nsrl_full"]["downloaded"]
+              and not st["feodo"]["downloaded"], {k: (v["downloaded"], v["disk_bytes"]) for k, v in st.items()})
+        free, drive = ts.disk_free()
+        check("disk: free space and drive of the database folder", free > 0 and bool(drive), (free, drive))
+        used = ts.space_used()
+        check("disk: space used = every present copy counted once",
+              used == sum({r["path"]: r["disk_bytes"] for r in ts.status() if r["present"]}.values()), used)
+        held = open(dl / "cins.txt", "rb")                             # an analysis is reading it
+        try:
+            res = {r["id"]: r for r in ts.delete(["maltrail", "ipsum", "nsrl_delta", "cins"])}
+        finally:
+            held.close()
+        st = {r["id"]: r for r in ts.status()}
+        meta = json.loads((dl / "_meta.json").read_text(encoding="utf-8"))
+        check("delete: downloaded copies and their records go, freed bytes counted",
+              res["maltrail"]["ok"] and res["maltrail"]["freed"] == 1700 and not (dl / "trails").exists()
+              and res["ipsum"]["ok"] and not (dl / "ipsum.txt").exists()
+              and "maltrail" not in meta and "ipsum" not in meta, (res, sorted(meta)))
+        check("delete: the bundled copy is never deleted and is used again",
+              (tmp / "threat_intel_db" / "bundled" / "ipsum.txt").exists() and st["ipsum"]["where"] == "bundled"
+              and not st["ipsum"]["removed"])
+        check("delete: shared NSRL database removed with both records",
+              res["nsrl_delta"]["ok"] and not (dl / "nsrl_known.sqlite").exists()
+              and "nsrl_delta" not in meta and "nsrl_full" not in meta)
+        check("delete: a file in use is reported and kept with its record",
+              not res["cins"]["ok"] and "in use" in res["cins"]["detail"] and (dl / "cins.txt").exists()
+              and "cins" in meta, res["cins"])
+
+        # ---- GUI: controls, help, formatting, a real update with Pause / Resume / Cancel
+        try:
+            os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+            from PySide6.QtWidgets import QApplication, QMessageBox
+        except Exception:
+            print("  SKIP  gui download controls (PySide6 not installed)")
+            return
+        app = QApplication.instance() or QApplication([])
+        from gui import theme, widgets
+        from gui import ti_dialog as td
+        from gui.help_check import check as help_cover
+        widgets.set_theme(theme.palette("dark"))
+
+        def pump(ms):
+            """Process GUI events while letting the download thread run. QTest.qWait keeps the
+            Python lock while it waits (the real app's exec() does not), which stalled the
+            download thread and made pause/resume timing flaky."""
+            end = time.time() + ms / 1000.0
+            while time.time() < end:
+                app.processEvents()
+                time.sleep(0.01)
+        check("format: sizes and time left",
+              (td.fmt_size(0), td.fmt_size(1536), td.fmt_size(231 * 1024 ** 2), td.fmt_size(154.2 * 1024 ** 3),
+               td.fmt_eta(26), td.fmt_eta(125), td.fmt_eta(3700))
+              == ("0 bytes", "1.5 KB", "231.0 MB", "154.2 GB", "26 s", "2 min 05 s", "1 h 01 min"))
+        m = td.RateMeter(window=5)
+        check("speed: averaged over the last seconds, old samples dropped",
+              m.add(0.0, 0) is None and m.add(1.0, 1000000) == 1000000.0 and m.add(10.0, 1000000) == 0.0
+              and len(m.samples) == 2)
+        c = ts.Transfer()
+        c.begin(2, "abuse.ch MalwareBazaar")
+        check("progress line: before the first byte it says Connecting, no speed / size guess",
+              td.progress_line(c, 1000.0) == "Connecting ..." and td.progress_permille(c) is None,
+              td.progress_line(c, 1000.0))
+        c.count, c.done, c.total = 4, int(120.5 * 1024 ** 2), 231 * 1024 ** 2
+        line = td.progress_line(c, 4.2 * 1024 ** 2)
+        check("progress line: done of total, left, speed, time left",
+              td.progress_title(c) == "Database 2 of 4: abuse.ch MalwareBazaar"
+              and "120.5 MB of 231.0 MB" in line and "110.5 MB left" in line and "4.2 MB/s" in line
+              and "about 26 s left" in line and td.progress_permille(c) == 521, line)
+        c.pause()
+        check("progress line: Paused, no speed while paused",
+              "Paused" in td.progress_line(c, None) and "/s" not in td.progress_line(c, None))
+        c.resume()
+        c.multi, c.source_bytes, c.detail = True, 412 * 1024 ** 2, "list 124"
+        check("progress line: many-file database shows bytes so far + list, moving bar",
+              "412.0 MB downloaded (list 124)" in td.progress_line(c, None) and td.progress_permille(c) is None)
+        c.multi, c.phase, c.detail = False, "building", "1,250,000 hashes"
+        check("progress line: database build step",
+              td.progress_line(c, None).startswith("Building the local database: 1,250,000 hashes"))
+        # a GUI update against the local server: the fake source shows up as a table row
+        slow = src("t_gui", "/veryslow")                               # 3 MB in ~3.4 s: time to pause + cancel
+        ts.SOURCES.append(slow)
+        ts.BY_ID["t_gui"] = slow
+        dlg = td.DatabasesDialog()
+        dlg.show()
+        w = dlg.db
+        cov = help_cover(dlg)
+        check("gui: every control of the database window has help (incl. Delete, Pause, Cancel)",
+              not cov["missing"] and not cov["invalid"], cov)
+        check("gui: Size column, progress panel hidden until an update runs, disk line shown",
+              w.table.columnCount() == 7 and w.table.horizontalHeaderItem(4).text() == "Size"
+              and w.prog.isHidden() and "Free disk space (" in w.disk.text(), w.disk.text())
+        rows = {r["id"]: i for i, r in enumerate(w._rows)}
+        from PySide6.QtCore import Qt
+        for i in range(w.table.rowCount()):
+            w.table.item(i, 0).setCheckState(Qt.Unchecked)
+        check("gui: Delete disabled with nothing deletable ticked", not w.delb.isEnabled())
+        w.table.item(rows["cins"], 0).setCheckState(Qt.Checked)
+        check("gui: Delete enabled when a ticked row has a downloaded copy", w.delb.isEnabled())
+        w.table.item(rows["cins"], 0).setCheckState(Qt.Unchecked)
+        w.table.item(rows["t_gui"], 0).setCheckState(Qt.Checked)
+        w._update()
+        end = time.time() + 10
+        while w._ctl.done < 256 * 1024 and time.time() < end:
+            pump(20)
+        pump(1300)                                                     # speed needs >= 1 s of samples
+        check("gui: progress panel shows database, size left and speed",
+              not w.prog.isHidden() and "Database 1 of 1: Test t_gui" in w.p_title.text()
+              and " left" in w.p_text.text() and "/s" in w.p_text.text() and not w.upd.isEnabled(),
+              (w.p_title.text(), w.p_text.text()))
+        w.pause_btn.click()
+        pump(300)
+        a = w._ctl.done
+        pump(400)
+        check("gui: Pause holds the download, button says Resume, text says Paused",
+              w._ctl.paused and a == w._ctl.done and w.pause_btn.text() == "Resume" and "Paused" in w.p_text.text(),
+              (w.pause_btn.text(), w.p_text.text()))
+        w.pause_btn.click()
+        pump(200)
+        check("gui: Resume continues", not w._ctl.paused and w._ctl.done > a and w.pause_btn.text() == "Pause")
+        orig_q = QMessageBox.question
+        QMessageBox.question = staticmethod(lambda *a, **k: QMessageBox.Yes)
+        try:
+            closed = []
+            check("gui: closing during an update asks to cancel and does not close yet",
+                  w.close_when_idle(dlg, lambda: closed.append(1)) is False and w._ctl.cancelled)
+            end = time.time() + 15
+            while w.busy() and time.time() < end:
+                pump(50)
+        finally:
+            QMessageBox.question = orig_q
+        check("gui: after Cancel the window closes, the result says Cancelled, buttons back",
+              closed == [1] and not w.busy() and w.prog.isHidden() and "Cancelled" in w.state.text()
+              and w.upd.isEnabled(), w.state.text())
+        dlg.close()
+    finally:
+        ts.BY_ID.clear()
+        ts.BY_ID.update(saved_by_id)
+        ts.SOURCES[:] = saved_sources
+        srv.shutdown()
+        if old_home is None:
+            os.environ.pop("RAMBREAKER_HOME", None)
+        else:
+            os.environ["RAMBREAKER_HOME"] = old_home
+        shutil.rmtree(tmp, ignore_errors=True)
 
 
 def test_safe_zip():
@@ -2976,7 +3376,8 @@ def main():
               test_timeout_model_formats, test_ioc_check_attribution_state,
               test_gui_fast_sort, test_linux_elfs_labels, test_linux_malfind_skip_fix,
               test_vol2_resume_clean_empty, test_gui_extract_job_done, test_gui_mode_split,
-              test_gui_wheel_guard, test_threat_intel, test_gui_threat_intel, test_safe_zip, test_dependency_gate, test_plugin_retry,
+              test_gui_wheel_guard, test_threat_intel, test_gui_threat_intel, test_ti_download_controls,
+              test_safe_zip, test_dependency_gate, test_plugin_retry,
               test_v24_speed_and_fixes, test_v24_local_hash_databases,
               test_vmem_gap):
         try:

@@ -4,6 +4,32 @@ RAMBreaker v2 is the Windows edition: a port and upgrade of the original
 Linux RAMBreaker/CresCent toolkit (v6.2, git tag `v6.2`; its own history is in
 `src/CHANGELOG.md`). Details of each change are in `README.md`.
 
+## v2.6.0 (2026-11-22): threat-intel downloads you can follow and control
+
+- Threat-intel databases window: while an update runs it shows which database is
+  being fetched (n of N), a progress bar, how much is downloaded and how much is
+  left, the download speed and the time left, with Pause / Resume and Cancel.
+- Cancel keeps the previous copy of the database being fetched; databases
+  finished earlier in the same update stay updated. VirusShare keeps the lists
+  it already installed and continues from there on the next update.
+- A connection that drops part-way (for example during a long pause) continues
+  where it stopped (HTTP Range); a server without that sends the file again.
+- "Delete ticked downloads" removes downloaded copies to free disk space;
+  copies that ship with RAMBreaker stay and are used again. New Size column, the
+  free disk space and the space all databases use, and a warning before an
+  update that needs more free space than the drive has.
+- Closing the window during an update asks whether to cancel it.
+- The table fits the window again: the long size note of the optional databases
+  had pushed the Size, Age and Entries columns out of view.
+- Fixed: v2.5.1 could freeze the window ("not responding") during a large
+  threat-intel update. Its mouse-wheel protection ran Python code for every
+  window event, so the window waited whenever the download thread was busy.
+  Each drop-down and number box now ignores the wheel itself; the window is as
+  responsive as before v2.5.1 and the wheel still only scrolls.
+- Fixed: updating YARA Forge from the GUI always failed with "No module named
+  'yara'". The downloaded rules are now checked with the bundled Python before
+  they replace the old ones.
+
 ## v2.5.1 (2026-11-22): mouse wheel fix
 
 - GUI: the mouse wheel over a drop-down, number box or slider (Case setup panel,

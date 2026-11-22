@@ -6,11 +6,11 @@ from collections import deque
 
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QFont, QTextCursor
-from PySide6.QtWidgets import (QApplication, QComboBox, QHBoxLayout, QLineEdit, QPlainTextEdit,
+from PySide6.QtWidgets import (QApplication, QHBoxLayout, QLineEdit, QPlainTextEdit,
                                QTextEdit, QToolButton, QVBoxLayout, QWidget)
 
 from gui import icons
-from gui.widgets import HelpButton, THEME, helped
+from gui.widgets import ComboBox, HelpButton, THEME, helped
 
 MAX_LINES = 20000
 
@@ -33,7 +33,7 @@ class LogConsole(QWidget):
         self.pause.setText("Pause")
         self.pause.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
         helped(self.pause, "log.pause")
-        self.level = QComboBox()
+        self.level = ComboBox()
         self.level.addItems(self.LEVELS)
         helped(self.level, "log.level")
         self.search = QLineEdit()

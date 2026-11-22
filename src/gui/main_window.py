@@ -13,7 +13,7 @@ from PySide6.QtGui import QAction, QColor, QDragEnterEvent, QDropEvent, QKeySequ
 from PySide6.QtWidgets import (QApplication, QCheckBox, QComboBox, QDialog, QDockWidget,
                                QFileDialog, QFrame, QGridLayout, QHBoxLayout, QHeaderView,
                                QLabel, QLineEdit, QListWidget, QMainWindow, QMessageBox,
-                               QProgressBar, QPushButton, QScrollArea, QSizePolicy, QSpinBox,
+                               QProgressBar, QPushButton, QScrollArea, QSizePolicy,
                                QStatusBar, QTextBrowser, QToolBar, QToolButton, QTreeWidget,
                                QTreeWidgetItem, QVBoxLayout, QWidget)
 
@@ -25,7 +25,7 @@ from gui.ram_anim import RamAnimation
 from gui.results_view import ResultsView
 from gui.retry_dialog import RetryDialog
 from gui.runner import AnalysisRunner
-from gui.widgets import (HelpButton, HelpMode, HelpPopup, Spinner, helped, install_wheel_guard,
+from gui.widgets import (ComboBox, HelpButton, HelpMode, HelpPopup, Spinner, SpinBox, helped,
                          set_theme, with_help)
 
 SRC = Path(__file__).resolve().parent.parent
@@ -35,7 +35,7 @@ sys.path.insert(0, str(SRC))
 from modules import platform_compat  # noqa: E402
 
 APP = "RAMBreaker"
-VERSION = "2.5.1"
+VERSION = "2.6.0"
 
 PRESETS = [
     ("Standard (recommended)", "core", "full"),
@@ -83,7 +83,7 @@ def split_mode(mode: str):
 
 
 def speed_combo(value: str) -> QComboBox:
-    cb = QComboBox()
+    cb = ComboBox()
     cb.setSizeAdjustPolicy(QComboBox.AdjustToMinimumContentsLengthWithIcon)
     cb.setMinimumContentsLength(12)
     for v, label in SPEED_MODES:
@@ -206,18 +206,18 @@ class SetupPanel(QWidget):
         row.addWidget(self.browse)
         row.addWidget(HelpButton("setup.browse"))
         lay.addLayout(row)
-        self.preset = QComboBox()
+        self.preset = ComboBox()
         for name, _c, _m in PRESETS:
             self.preset.addItem(name)
         lay.addWidget(with_help(self.preset, "setup.preset", "Preset"))
         lay.addWidget(self._section("What to analyse"))
-        self.category = QComboBox()
+        self.category = ComboBox()
         self.category.setSizeAdjustPolicy(QComboBox.AdjustToMinimumContentsLengthWithIcon)
         self.category.setMinimumContentsLength(12)
         for v, label in CATEGORIES:
             self.category.addItem(label, v)
         lay.addWidget(with_help(self.category, "setup.category", "Plugin category"))
-        self.engine = QComboBox()
+        self.engine = ComboBox()
         self.engine.addItems(["Auto", "Volatility 3", "Volatility 2"])
         lay.addWidget(with_help(self.engine, "setup.engine", "Engine"))
         # known-image shortcut
@@ -227,13 +227,13 @@ class SetupPanel(QWidget):
         self.knownbox.setObjectName("Panel")
         kl = QVBoxLayout(self.knownbox)
         kl.setContentsMargins(8, 6, 8, 6)
-        self.os = QComboBox()
+        self.os = ComboBox()
         self.os.addItems(["windows", "linux", "mac"])
         kl.addWidget(with_help(self.os, "setup.os", "OS"))
         self.osver = QLineEdit()
         self.osver.setPlaceholderText("e.g. Windows 10 22H2 / Ubuntu 22.04")
         kl.addWidget(with_help(self.osver, "setup.version", "OS version"))
-        self.profile = QComboBox()
+        self.profile = ComboBox()
         self.profile.setEditable(True)
         self.profile.addItems(["", "WinXPSP2x86", "WinXPSP3x86", "Win7SP0x86", "Win7SP1x86",
                                "Win7SP0x64", "Win7SP1x64", "Win2008R2SP1x64", "Win8SP1x64",
@@ -271,7 +271,7 @@ class SetupPanel(QWidget):
         self.fast_note.setWordWrap(True)
         self.fast_note.setVisible(False)
         lay.addWidget(self.fast_note)
-        self.jobs = QSpinBox()
+        self.jobs = SpinBox()
         self.jobs.setRange(1, 16)
         self.jobs.setValue(int(settings.get("jobs", 4)))
         lay.addWidget(with_help(self.jobs, "setup.jobs", "Parallel jobs"))
@@ -504,7 +504,7 @@ class SettingsDialog(QDialog):
         self.setWindowTitle("Settings")
         self.s = dict(s)
         lay = QVBoxLayout(self)
-        self.theme = QComboBox()
+        self.theme = ComboBox()
         self.theme.addItems(["dark", "light"])
         self.theme.setCurrentText(s.get("theme", "dark"))
         lay.addWidget(with_help(self.theme, "set.theme", "Theme"))
@@ -517,7 +517,7 @@ class SettingsDialog(QDialog):
         r.addWidget(with_help(self.out, "set.outdir", "Default output"), 1)
         r.addWidget(ob)
         lay.addLayout(r)
-        self.jobs = QSpinBox()
+        self.jobs = SpinBox()
         self.jobs.setRange(1, 16)
         self.jobs.setValue(int(s.get("jobs", 4)))
         lay.addWidget(with_help(self.jobs, "set.jobs", "Parallel jobs"))
@@ -526,7 +526,7 @@ class SettingsDialog(QDialog):
         self.fixed = QCheckBox("Use one fixed timeout for every plugin")
         self.fixed.setChecked(bool(s.get("fixed_timeout")))
         lay.addWidget(with_help(self.fixed, "set.fixedto"))
-        self.tmo = QSpinBox()
+        self.tmo = SpinBox()
         self.tmo.setRange(30, 86400)
         self.tmo.setValue(int(s.get("timeout", 600)))
         lay.addWidget(with_help(self.tmo, "set.timeout", "Fixed timeout (s)"))
@@ -759,7 +759,6 @@ class TourOverlay(QWidget):
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        install_wheel_guard()            # before any control exists: wheel scrolls, never changes values
         self.s = load_settings()
         self.c = theme.palette(self.s["theme"])
         set_theme(self.c)

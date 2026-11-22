@@ -10,9 +10,9 @@ from typing import Any, Dict, List, Optional
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (QCheckBox, QDialog, QFrame, QHBoxLayout, QLabel, QPushButton,
-                               QSpinBox, QVBoxLayout)
+                               QVBoxLayout)
 
-from gui.widgets import helped, with_help
+from gui.widgets import SpinBox, helped, with_help
 from modules import plugin_retry as pr
 
 MAX_S = 7 * 86400
@@ -87,7 +87,7 @@ class RetryDialog(QDialog):
             pre = int(calibrated_s or 600)
             why = "the calibrated limit for this dump"
         pre = max(30, min(MAX_S, pre))
-        self.limit = QSpinBox()
+        self.limit = SpinBox()
         self.limit.setRange(30, MAX_S)
         self.limit.setSingleStep(60)
         self.limit.setSuffix(" s")

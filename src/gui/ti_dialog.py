@@ -4,37 +4,125 @@ ThreatIntelDialog   asked before a threat-intel run: VirusTotal key (stored encr
                     for this Windows user only if the user ticks it), pace, YARA rule set,
                     custom-rule folder, and the threat-intel databases with their age.
 DatabasesWidget     the database table + an Update button (the user's choice, never
-                    automatic); also opened from Settings.
+                    automatic); also opened from Settings. v2.6: live progress (size
+                    left, speed, time left), Pause / Resume / Cancel, Delete of
+                    downloaded copies, a Size column and the free disk space.
 
 The results themselves are NOT shown here: they go to report.html (tab "Threat
 Intelligence") and <case>/threat_intelligence/.
 """
 
+import re
+import time
+from collections import deque
 from pathlib import Path
 from typing import Dict, List, Optional
 
-from PySide6.QtCore import QThread, Qt, Signal
-from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QDialog, QDoubleSpinBox,
-                               QFileDialog, QGroupBox, QHBoxLayout, QHeaderView, QLabel, QLineEdit,
-                               QMessageBox, QPushButton, QSpinBox, QTableWidget, QTableWidgetItem,
-                               QVBoxLayout, QWidget)
+from PySide6.QtCore import QThread, QTimer, Qt, Signal
+from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QDialog, QFileDialog, QFrame,
+                               QGroupBox, QHBoxLayout, QHeaderView, QLabel, QLineEdit,
+                               QMessageBox, QProgressBar, QPushButton, QTableWidget,
+                               QTableWidgetItem, QVBoxLayout, QWidget)
 
-from gui.widgets import helped, with_help
+from gui.widgets import ComboBox, DoubleSpinBox, SpinBox, helped, with_help
 from modules import platform_compat, secret_store
 from modules import ti_sources as ts
 
 
+# ------------------------------------------------------------------ progress text (v2.6)
+def fmt_size(n) -> str:
+    """1536 -> '1.5 KB' (Windows-style units of 1024)."""
+    if n is None:
+        return "?"
+    n = float(n)
+    if abs(n) < 1024:
+        return f"{int(n)} bytes"
+    for unit in ("KB", "MB", "GB", "TB"):
+        n /= 1024.0
+        if abs(n) < 1024 or unit == "TB":
+            return f"{n:,.1f} {unit}"
+    return f"{n:,.1f} TB"
+
+
+def fmt_eta(seconds: float) -> str:
+    s = max(0, int(round(seconds)))
+    if s < 60:
+        return f"{s} s"
+    if s < 3600:
+        return f"{s // 60} min {s % 60:02d} s"
+    return f"{s // 3600} h {s % 3600 // 60:02d} min"
+
+
+class RateMeter:
+    """Download speed over the last few seconds from (time, bytes received) samples.
+    No value until at least `min_span` seconds are measured: the first second of a
+    download (connection start-up) gave wild time-left guesses ('about 42 min')."""
+
+    def __init__(self, window: float = 5.0, min_span: float = 1.0):
+        self.window = window
+        self.min_span = min_span
+        self.samples = deque()
+
+    def reset(self) -> None:
+        self.samples.clear()
+
+    def add(self, t: float, received: int) -> Optional[float]:
+        self.samples.append((t, received))
+        while len(self.samples) > 2 and t - self.samples[0][0] > self.window:
+            self.samples.popleft()
+        (t0, b0), (t1, b1) = self.samples[0], self.samples[-1]
+        return (b1 - b0) / (t1 - t0) if t1 - t0 >= self.min_span else None
+
+
+def progress_title(c: "ts.Transfer") -> str:
+    return f"Database {c.index} of {c.count}: {c.source}" if c.source else "Starting the update ..."
+
+
+def progress_permille(c: "ts.Transfer") -> Optional[int]:
+    """Bar position 0..1000, or None for a moving bar (size unknown / building a database)."""
+    if c.phase == "downloading" and c.total and not c.multi:
+        return max(0, min(1000, int(1000 * c.done / c.total)))
+    return None
+
+
+def progress_line(c: "ts.Transfer", speed: Optional[float], cancelling: bool = False) -> str:
+    """'120.5 MB of 231.0 MB  ·  110.5 MB left  ·  4.2 MB/s  ·  about 26 s left'"""
+    parts = []
+    connecting = c.phase == "downloading" and not c.done and c.total is None and not (c.multi and c.source_bytes)
+    if connecting:
+        parts.append("Connecting ...")
+    elif c.phase == "downloading":
+        if c.multi:
+            parts.append(f"{fmt_size(c.source_bytes)} downloaded" + (f" ({c.detail})" if c.detail else ""))
+        elif c.total:
+            parts += [f"{fmt_size(c.done)} of {fmt_size(c.total)}", f"{fmt_size(max(0, c.total - c.done))} left"]
+        else:
+            parts.append(f"{fmt_size(c.done)} downloaded (the server did not say the size)")
+    else:
+        word = {"unpacking": "Unpacking the download", "building": "Building the local database"}.get(
+            c.phase, "Working")
+        parts.append(word + (f": {c.detail}" if c.detail else ""))
+    if cancelling:
+        parts.append("Cancelling ...")
+    elif c.paused:
+        parts.append("Paused")
+    elif c.phase == "downloading" and speed is not None and not connecting:
+        parts.append(f"{fmt_size(speed)}/s")
+        if c.total and not c.multi and speed > 1:
+            parts.append(f"about {fmt_eta((c.total - c.done) / speed)} left")
+    return "  ·  ".join(parts)
+
+
 class _UpdateThread(QThread):
-    step = Signal(str)
     done = Signal(list)
 
-    def __init__(self, ids: List[str], keys: Dict[str, str]):
+    def __init__(self, ids: List[str], keys: Dict[str, str], ctl: "ts.Transfer"):
         super().__init__()
-        self.ids, self.keys = ids, keys
+        self.ids, self.keys, self.ctl = ids, keys, ctl
 
     def run(self):
         try:
-            res = ts.update(self.ids, self.keys, progress=self.step.emit)
+            res = ts.update(self.ids, self.keys, ctl=self.ctl)
         except Exception as e:                       # never crash the GUI on a network error
             res = [{"id": "-", "name": "update", "ok": False, "detail": str(e)}]
         self.done.emit(res)
@@ -56,15 +144,23 @@ class DatabasesWidget(QWidget):
             "and the report says how old they are.")
         intro.setWordWrap(True)
         lay.addWidget(intro)
-        self.table = QTableWidget(0, 6)
-        self.table.setHorizontalHeaderLabels(["Update", "Database", "Contains", "Copy", "Age", "Entries"])
+        self.table = QTableWidget(0, 7)
+        self.table.setHorizontalHeaderLabels(["Update", "Database", "Contains", "Copy", "Size", "Age", "Entries"])
         self.table.verticalHeader().setVisible(False)
         self.table.setSelectionMode(QAbstractItemView.NoSelection)
         self.table.setEditTriggers(QAbstractItemView.NoEditTriggers)
         hh = self.table.horizontalHeader()
         hh.setSectionResizeMode(1, QHeaderView.Stretch)
-        for c in (0, 2, 3, 4, 5):
+        for c in (0, 4, 5, 6):
             hh.setSectionResizeMode(c, QHeaderView.ResizeToContents)
+        # v2.6: Contains / Copy have a set width (long text is cut with "...", full text on
+        # hover). Sized to their longest text, the Copy column of the optional databases
+        # ("about 19 GB download and well over 100 GB ...") pushed Size, Age and Entries
+        # out of the window and centred its own header out of sight.
+        for c, width in ((2, 190), (3, 210)):
+            hh.setSectionResizeMode(c, QHeaderView.Interactive)
+            self.table.setColumnWidth(c, width)
+        self.table.setWordWrap(False)
         self.table.setMinimumHeight(260)
         lay.addWidget(with_help(self.table, "ti.db.table"))
         self.abuse = QLineEdit(secret_store.get("abusech"))
@@ -77,19 +173,69 @@ class DatabasesWidget(QWidget):
         self.upd = QPushButton("Update ticked databases now")
         self.upd.setObjectName("Primary")
         helped(self.upd, "ti.db.update")
-        self.state = QLabel("")
-        self.state.setWordWrap(True)
+        self.delb = QPushButton("Delete ticked downloads")
+        helped(self.delb, "ti.db.delete")
         r.addWidget(self.stale_btn)
         r.addWidget(self.upd)
-        r.addWidget(self.state, 1)
+        r.addWidget(self.delb)
+        r.addStretch(1)
         lay.addLayout(r)
+        # v2.6: live progress of an update, with Pause / Resume and Cancel
+        self.prog = QFrame()
+        self.prog.setObjectName("Panel")
+        pl = QVBoxLayout(self.prog)
+        pl.setContentsMargins(8, 6, 8, 6)
+        self.p_title = QLabel("")
+        self.p_title.setWordWrap(True)
+        self.p_bar = QProgressBar()
+        self.p_bar.setRange(0, 1000)
+        helped(self.p_bar, "ti.db.progress")
+        pr = QHBoxLayout()
+        self.p_text = QLabel("")
+        self.p_text.setWordWrap(True)
+        helped(self.p_text, "ti.db.progress")
+        self.pause_btn = QPushButton("Pause")
+        helped(self.pause_btn, "ti.db.pause")
+        self.cancel_btn = QPushButton("Cancel")
+        helped(self.cancel_btn, "ti.db.cancel")
+        pr.addWidget(self.p_text, 1)
+        pr.addWidget(self.pause_btn)
+        pr.addWidget(self.cancel_btn)
+        pl.addWidget(self.p_title)
+        pl.addWidget(self.p_bar)
+        pl.addLayout(pr)
+        self.prog.setVisible(False)
+        lay.addWidget(self.prog)
+        self.state = QLabel("")
+        self.state.setWordWrap(True)
+        lay.addWidget(self.state)
+        self.disk = QLabel("")
+        self.disk.setObjectName("Muted")
+        helped(self.disk, "ti.db.disk")
+        lay.addWidget(self.disk)
         self.stale_btn.clicked.connect(self._tick_stale)
         self.upd.clicked.connect(self._update)
+        self.delb.clicked.connect(self._delete)
+        self.pause_btn.clicked.connect(self._pause)
+        self.cancel_btn.clicked.connect(self.cancel)
+        self.table.itemChanged.connect(self._sync_buttons)
         self._thread: Optional[_UpdateThread] = None
+        self._running = False
+        self._ctl: Optional[ts.Transfer] = None
+        self._cancelling = False
+        self._was_paused = False
+        self._ticks = 0
+        self._when_idle = None
+        self._meter = RateMeter()
+        self._timer = QTimer(self)
+        self._timer.setInterval(500)
+        self._timer.timeout.connect(self._tick)
+        self._rows: List[dict] = []
         self.refresh()
 
     def refresh(self):
         rows = ts.status()
+        self.table.blockSignals(True)              # setItem would fire itemChanged per cell
         self.table.setRowCount(len(rows))
         self._rows = rows
         for i, r in enumerate(rows):
@@ -103,19 +249,47 @@ class DatabasesWidget(QWidget):
             name.setToolTip(f"{r['why']}\n\n" + (f"Size: {r['size']}\n" if r.get("size") else "")
                             + f"Licence: {r['licence']}\n{r['homepage']}")
             self.table.setItem(i, 1, name)
-            self.table.setItem(i, 2, QTableWidgetItem(r["what"]))
-            copy = r["where"] if r["present"] else (
+            what = QTableWidgetItem(r["what"])
+            what.setToolTip(r["what"])
+            self.table.setItem(i, 2, what)
+            short_size = re.split(r"[,;]| and ", r.get("size") or "")[0].strip() or "large download"
+            copy = (r["where"] + ("  (incomplete - Update continues it)" if r.get("partial") else "")) \
+                if r["present"] else (
                 "file removed after download (antivirus?)" if r.get("removed") else
-                ("optional - not installed (" + (r.get("size") or "large download") + ")") if r.get("optional") else
+                f"optional - not installed ({short_size})" if r.get("optional") else
                 "needs abuse.ch key" if r["needs_key"] else "not downloaded")
-            self.table.setItem(i, 3, QTableWidgetItem(copy))
+            ci = QTableWidgetItem(copy)
+            ci.setToolTip(copy + (f"\n\nSize: {r['size']}" if r.get("size") else ""))
+            self.table.setItem(i, 3, ci)
+            size = QTableWidgetItem(fmt_size(r["disk_bytes"]) if r["present"] else "")
+            size.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+            self.table.setItem(i, 4, size)
             age = "" if r["age_days"] is None else (f"{r['age_days']:g} days" + ("  (out of date)" if r["stale"] else ""))
-            self.table.setItem(i, 4, QTableWidgetItem(age))
-            self.table.setItem(i, 5, QTableWidgetItem("" if r["entries"] is None else f"{r['entries']:,}"))
+            self.table.setItem(i, 5, QTableWidgetItem(age))
+            self.table.setItem(i, 6, QTableWidgetItem("" if r["entries"] is None else f"{r['entries']:,}"))
+        self.table.blockSignals(False)
         n_stale = sum(1 for r in rows if r["stale"])
         n_missing = sum(1 for r in rows if not r["present"] and not r["needs_key"] and not r.get("optional"))
         self.state.setText(("All databases are up to date." if not (n_stale or n_missing) else
                             f"{n_stale} out of date, {n_missing} not downloaded yet."))
+        self._show_disk()
+        self._sync_buttons()
+
+    def _show_disk(self):
+        free, drive = ts.disk_free()
+        where = f"Free disk space ({drive}): {fmt_size(free)}" if free >= 0 else "Free disk space: unknown"
+        self.disk.setText(f"{where}   ·   threat-intel databases use {fmt_size(ts.space_used(self._rows))}")
+
+    def _ticked(self) -> List[int]:
+        return [i for i in range(self.table.rowCount())
+                if self.table.item(i, 0) is not None and self.table.item(i, 0).checkState() == Qt.Checked]
+
+    def _sync_buttons(self, *_):
+        busy = self.busy()
+        self.upd.setEnabled(not busy)
+        self.stale_btn.setEnabled(not busy)
+        self.delb.setEnabled(not busy and any(self._rows[i]["downloaded"] for i in self._ticked()
+                                              if i < len(self._rows)))
 
     def summary(self) -> str:
         rows = ts.status()
@@ -130,37 +304,159 @@ class DatabasesWidget(QWidget):
             self.table.item(i, 0).setCheckState(Qt.Checked if on else Qt.Unchecked)
 
     def selected(self) -> List[str]:
-        return [self._rows[i]["id"] for i in range(self.table.rowCount())
-                if self.table.item(i, 0).checkState() == Qt.Checked]
+        return [self._rows[i]["id"] for i in self._ticked()]
 
+    # ---------------------------------------------------------------- update
     def _update(self):
         ids = self.selected()
         if not ids:
             QMessageBox.information(self, "RAMBreaker", "Tick the databases to update first.")
             return
+        need = sum(r["need_free"] for r in self._rows if r["id"] in ids)
+        free, drive = ts.disk_free()
+        if need and 0 <= free < need:
+            if QMessageBox.question(
+                    self, "RAMBreaker",
+                    f"The ticked databases need about {fmt_size(need)} of free disk space while they are "
+                    f"downloaded and built, but {drive} has only {fmt_size(free)} free.\n\nStart anyway?") \
+                    != QMessageBox.Yes:
+                return
         k = self.abuse.text().strip()
         if k:
             secret_store.put("abusech", k)
-        self.upd.setEnabled(False)
-        self.state.setText("Downloading...")
-        self._thread = _UpdateThread(ids, {"abusech": k})
-        self._thread.step.connect(lambda n: self.state.setText(f"Downloading {n} ..."))
+        self._ctl = ts.Transfer()
+        self._cancelling, self._was_paused, self._ticks = False, False, 0
+        self._meter.reset()
+        self.pause_btn.setText("Pause")
+        self.pause_btn.setEnabled(True)
+        self.cancel_btn.setEnabled(True)
+        self.p_bar.setRange(0, 1000)
+        self.p_bar.setValue(0)
+        self.state.setText("")
+        self.prog.setVisible(True)
+        self._running = True
+        self._thread = _UpdateThread(ids, {"abusech": k}, self._ctl)
         self._thread.done.connect(self._updated)
         self._thread.start()
+        self._sync_buttons()
+        self._tick()
+        self._timer.start()
+
+    def _tick(self):
+        """Every 0.5 s while an update runs: title, bar, size left, speed, time left, disk."""
+        c = self._ctl
+        if c is None:
+            return
+        paused = c.paused
+        if paused != self._was_paused:                 # speed restarts after a pause
+            self._meter.reset()
+            self._was_paused = paused
+        speed = None if paused else self._meter.add(time.monotonic(), c.received)
+        self.p_title.setText(progress_title(c))
+        pm = progress_permille(c)
+        if pm is None:
+            if self.p_bar.maximum() != 0 and not paused:
+                self.p_bar.setRange(0, 0)              # moving bar: size of this step not known
+        else:
+            if self.p_bar.maximum() != 1000:
+                self.p_bar.setRange(0, 1000)
+            self.p_bar.setValue(pm)
+        self.p_text.setText(progress_line(c, speed, self._cancelling))
+        self._ticks += 1
+        if self._ticks % 4 == 1:
+            self._show_disk()
+
+    def _pause(self):
+        c = self._ctl
+        if c is None or not self._running:
+            return
+        if c.paused:
+            c.resume()
+            self.pause_btn.setText("Pause")
+        else:
+            c.pause()
+            self.pause_btn.setText("Resume")
+        self._tick()
+
+    def cancel(self):
+        """Stop the running update (the database being fetched keeps its old copy)."""
+        if self._ctl is not None and self._running:
+            self._cancelling = True
+            self._ctl.cancel()
+            self.pause_btn.setEnabled(False)
+            self.cancel_btn.setEnabled(False)
+            self._tick()
 
     def _updated(self, res):
-        self.upd.setEnabled(True)
+        if self._thread is not None:
+            self._thread.wait()                        # run() emits just before it returns
+        self._timer.stop()
+        self._running = False
+        self.prog.setVisible(False)
         ok = [r for r in res if r["ok"]]
-        bad = [r for r in res if not r["ok"]]
+        cancelled = [r for r in res if r.get("cancelled")]
+        bad = [r for r in res if not r["ok"] and not r.get("cancelled")]
         self.refresh()
         msg = f"Updated {len(ok)} of {len(res)}."
+        if cancelled:
+            msg += "  Cancelled: " + "; ".join(f"{r['name']} ({r['detail']})" for r in cancelled
+                                               if "not started" not in r["detail"])
+            skipped = sum(1 for r in cancelled if "not started" in r["detail"])
+            if skipped:
+                msg += f"; {skipped} not started"
         if bad:
             msg += "  Not updated: " + "; ".join(f"{r['name']}: {r['detail']}" for r in bad)[:600]
         self.state.setText(msg)
         self.updated.emit()
+        cb, self._when_idle = self._when_idle, None
+        if cb is not None:
+            cb()
 
     def busy(self) -> bool:
-        return self._thread is not None and self._thread.isRunning()
+        return self._running
+
+    def close_when_idle(self, parent: QWidget, close_fn) -> bool:
+        """For a window that holds this widget: True = it may close now. While an update
+        runs, ask whether to cancel it; on Yes the window closes (close_fn) as soon as the
+        download thread has stopped, never while it still runs."""
+        if not self.busy():
+            return True
+        if QMessageBox.question(parent, "RAMBreaker",
+                                "A database update is running. Cancel it and close this window?\n\n"
+                                "The database being downloaded keeps its previous copy.") == QMessageBox.Yes:
+            self._when_idle = close_fn
+            self.cancel()
+        return False
+
+    # ---------------------------------------------------------------- delete
+    def _delete(self):
+        rows = [self._rows[i] for i in self._ticked() if self._rows[i]["downloaded"]]
+        if not rows:
+            QMessageBox.information(self, "RAMBreaker",
+                                    "None of the ticked databases has a downloaded copy on this PC. Copies that "
+                                    "ship with RAMBreaker are part of the program and are not deleted.")
+            return
+        total = sum(r["downloaded_bytes"] for r in rows)
+        lines = "\n".join(f"   {r['name']}  ({fmt_size(r['downloaded_bytes'])})" for r in rows)
+        notes = []
+        if any(r["bundled"] for r in rows):
+            notes.append("Databases that also ship with RAMBreaker go back to that copy.")
+        if any(r["id"].startswith("nsrl_") for r in rows):
+            notes.append("The two NSRL rows share one database: deleting either removes it.")
+        if QMessageBox.question(
+                self, "RAMBreaker",
+                f"Delete the downloaded copies of:\n\n{lines}\n\nThis frees about {fmt_size(total)}. "
+                + " ".join(notes) + "\nYou can download them again with Update.") != QMessageBox.Yes:
+            return
+        res = ts.delete([r["id"] for r in rows])
+        freed = sum(r["freed"] for r in res)
+        bad = [r for r in res if not r["ok"]]
+        self.refresh()
+        msg = f"Deleted {len(res) - len(bad)} of {len(res)}, {fmt_size(freed)} freed."
+        if bad:
+            msg += "  Not deleted: " + "; ".join(f"{r['name']}: {r['detail']}" for r in bad)[:600]
+        self.state.setText(msg)
+        self.updated.emit()
 
 
 class DatabasesDialog(QDialog):
@@ -177,17 +473,15 @@ class DatabasesDialog(QDialog):
         close.clicked.connect(self.accept)
         r.addWidget(close)
         lay.addLayout(r)
-        self.resize(900, 560)
+        self.resize(1060, 660)
 
     def reject(self):
-        if not self.db.busy():
+        if self.db.close_when_idle(self, super().reject):
             super().reject()
 
     def accept(self):
-        if self.db.busy():
-            QMessageBox.information(self, "RAMBreaker", "Please wait for the download to finish.")
-            return
-        super().accept()
+        if self.db.close_when_idle(self, super().accept):
+            super().accept()
 
 
 class ThreatIntelDialog(QDialog):
@@ -227,11 +521,11 @@ class ThreatIntelDialog(QDialog):
         r.addStretch(1)
         gl.addLayout(r)
         r = QHBoxLayout()
-        self.rate = QDoubleSpinBox()
+        self.rate = DoubleSpinBox()
         self.rate.setRange(0.5, 1000)
         self.rate.setDecimals(1)
         self.rate.setValue(float(s.get("vt_rate", 4)))
-        self.max = QSpinBox()
+        self.max = SpinBox()
         self.max.setRange(1, 100000)
         self.max.setValue(int(s.get("vt_max", 100)))
         r.addWidget(with_help(self.rate, "ti.rate", "Lookups / minute"))
@@ -244,7 +538,7 @@ class ThreatIntelDialog(QDialog):
 
         g = QGroupBox("YARA rules")
         gl = QVBoxLayout(g)
-        self.yset = QComboBox()
+        self.yset = ComboBox()
         self.yset.addItem("core - fewer false positives (recommended)", "core")
         self.yset.addItem("extended - about twice the rules, more false positives", "extended")
         self.yset.setCurrentIndex(max(0, self.yset.findData(s.get("yara_set", "core"))))
@@ -338,9 +632,14 @@ class ThreatIntelDialog(QDialog):
         p.mkdir(parents=True, exist_ok=True)
         platform_compat.open_path(p)
 
+    def reject(self):
+        if self.db.close_when_idle(self, super().reject):
+            super().reject()
+
     def _accept(self):
         if self.db.busy():
-            QMessageBox.information(self, "RAMBreaker", "Please wait for the database download to finish.")
+            QMessageBox.information(self, "RAMBreaker", "A database update is running: wait for it to finish, "
+                                    "or press Cancel next to its progress bar.")
             return
         if not self.novt.isChecked() and not self.key.text().strip():
             if QMessageBox.question(self, "RAMBreaker", "No VirusTotal key entered. Run with local checks only "
